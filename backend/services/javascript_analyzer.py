@@ -99,6 +99,19 @@ class JavaScriptAnalyzer:
             print(f"ESLint error: {e}")
             return []
 
+    def _normalize_path(self, file_path: str) -> str:
+        """Normalize file path to be relative to project root"""
+        # If absolute path, make it relative
+        if os.path.isabs(file_path):
+            try:
+                return os.path.relpath(file_path, self.project_path)
+            except ValueError:
+                # Different drives on Windows
+                return file_path
+
+        # Already relative, return as-is
+        return file_path
+
     def _parse_eslint_output(self, eslint_output: List[dict]) -> List[Issue]:
         """Parse ESLint JSON output to Issue objects"""
         issues = []
@@ -106,9 +119,8 @@ class JavaScriptAnalyzer:
         for file_result in eslint_output:
             file_path = file_result.get('filePath', '')
 
-            # Make path relative to project
-            if file_path.startswith(self.project_path):
-                file_path = os.path.relpath(file_path, self.project_path)
+            # Normalize path to relative
+            file_path = self._normalize_path(file_path)
 
             for message in file_result.get('messages', []):
                 issue = Issue(

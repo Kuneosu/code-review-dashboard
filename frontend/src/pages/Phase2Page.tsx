@@ -2,12 +2,16 @@
  * Phase 2 Page: Analysis Progress
  */
 import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePhase2Store, AnalysisStatus } from '@/stores/phase2Store';
 import { ProgressBar } from '@/components/ProgressBar';
 import { LiveIssueSummary } from '@/components/LiveIssueSummary';
 
 export const Phase2Page: React.FC = () => {
+  const navigate = useNavigate();
+
   const {
+    analysisId,
     status,
     progress,
     currentFile,
@@ -186,7 +190,13 @@ export const Phase2Page: React.FC = () => {
                 </p>
               )}
               <button
-                onClick={() => alert('Phase 2-2에서 대시보드를 구현할 예정입니다')}
+                onClick={() => {
+                  if (analysisId) {
+                    navigate(`/dashboard?id=${analysisId}`);
+                  } else {
+                    console.error('[ERROR] No analysisId available');
+                  }
+                }}
                 className="px-8 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
               >
                 결과 보기 →

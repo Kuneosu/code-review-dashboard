@@ -115,6 +115,19 @@ class CustomPatternAnalyzer:
             print(f"Error analyzing file {file_path}: {e}")
             return []
 
+    def _normalize_path(self, file_path: str) -> str:
+        """Normalize file path to be relative to project root"""
+        # If absolute path, make it relative
+        if os.path.isabs(file_path):
+            try:
+                return os.path.relpath(file_path, self.project_path)
+            except ValueError:
+                # Different drives on Windows
+                return file_path
+
+        # Already relative, return as-is
+        return file_path
+
     def _find_pattern_matches(
         self,
         file_path: str,
@@ -123,6 +136,9 @@ class CustomPatternAnalyzer:
     ) -> List[Issue]:
         """Find all matches of a pattern in file content"""
         issues = []
+
+        # Normalize path to relative
+        normalized_path = self._normalize_path(file_path)
 
         try:
             pattern = re.compile(pattern_def['pattern'], re.IGNORECASE)
@@ -136,7 +152,7 @@ class CustomPatternAnalyzer:
                     snippet = line.strip()
 
                     issue = Issue(
-                        file=file_path,
+                        file=normalized_path,
                         line=line_num,
                         column=match.start() + 1,
                         severity=pattern_def['severity'],

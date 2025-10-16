@@ -10,6 +10,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    minify: false, // Disable minification for debugging
+    sourcemap: true,
+  },
   server: {
     port: 5173,
     proxy: {

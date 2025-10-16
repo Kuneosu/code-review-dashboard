@@ -326,6 +326,7 @@ class AnalysisOrchestrator:
         return {
             "analysis_id": analysis_id,
             "status": task.status.value,
+            "project_path": task.project_path,  # Add project path for VS Code integration
             "summary": {
                 "critical": task.live_summary.critical,
                 "high": task.live_summary.high,
