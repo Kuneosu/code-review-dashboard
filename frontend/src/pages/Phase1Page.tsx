@@ -2,12 +2,15 @@
  * Phase 1 Page: Project Upload & File Filtering
  */
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePhase1Store } from '@/stores/phase1Store';
+import { usePhase2Store } from '@/stores/phase2Store';
 import { ProjectSelector } from '@/components/ProjectSelector';
 import { FilterConfiguration } from '@/components/FilterConfiguration';
 import { FileTreeViewer } from '@/components/FileTreeViewer';
 
 export const Phase1Page: React.FC = () => {
+  const navigate = useNavigate();
   const {
     fileTree,
     filteredTree,
@@ -16,6 +19,7 @@ export const Phase1Page: React.FC = () => {
     projectPath,
     reset,
   } = usePhase1Store();
+  const { startAnalysis } = usePhase2Store();
 
   // Show project selector if no file tree
   if (!fileTree) {
@@ -29,6 +33,22 @@ export const Phase1Page: React.FC = () => {
     console.log('Reset button clicked');
     reset();
     console.log('Reset completed, fileTree should be null now');
+  };
+
+  // Handle start analysis
+  const handleStartAnalysis = async () => {
+    if (!projectPath || selectedFiles.length === 0) {
+      alert('프로젝트 경로와 파일을 먼저 선택해주세요');
+      return;
+    }
+
+    try {
+      await startAnalysis(selectedFiles, projectPath);
+      // Navigate to Phase 2 page
+      navigate('/analysis');
+    } catch (error: any) {
+      alert(`분석 시작 실패: ${error.message}`);
+    }
   };
 
   // Show filter configuration and file tree
@@ -86,8 +106,8 @@ export const Phase1Page: React.FC = () => {
             {selectedFiles.length > 0 && (
               <div className="mt-4">
                 <button
-                  onClick={() => alert('Phase 2 will be implemented next!')}
-                  className="w-full px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+                  onClick={handleStartAnalysis}
+                  className="w-full px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors"
                 >
                   Start Analysis →
                 </button>

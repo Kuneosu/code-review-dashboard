@@ -158,3 +158,42 @@ export async function importFilterConfig(request: {
     body: JSON.stringify(request),
   });
 }
+
+// Phase 2: Analysis APIs
+
+export async function startAnalysis(request: {
+  project_path: string;
+  selected_files: string[];
+  categories: string[];
+}): Promise<any> {
+  return fetchAPI<any>('/analysis/start', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
+export async function getAnalysisStatus(analysisId: string): Promise<any> {
+  return fetchAPI<any>(`/analysis/${analysisId}/status`);
+}
+
+export async function pauseAnalysis(analysisId: string): Promise<any> {
+  return fetchAPI<any>(`/analysis/${analysisId}/pause`, {
+    method: 'POST',
+  });
+}
+
+export async function resumeAnalysis(analysisId: string): Promise<any> {
+  return fetchAPI<any>(`/analysis/${analysisId}/resume`, {
+    method: 'POST',
+  });
+}
+
+export async function cancelAnalysis(analysisId: string): Promise<any> {
+  return fetchAPI<any>(`/analysis/${analysisId}/cancel`, {
+    method: 'POST',
+  });
+}
+
+export async function getAnalysisResult(analysisId: string): Promise<any> {
+  return fetchAPI<any>(`/analysis/${analysisId}/result`);
+}

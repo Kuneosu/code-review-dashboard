@@ -4,6 +4,7 @@ Smart Code Review - Backend Main Application
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.phase1 import router as phase1_router
+from api.phase2 import router as phase2_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -23,6 +24,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(phase1_router)
+app.include_router(phase2_router)
 
 
 @app.get("/")
