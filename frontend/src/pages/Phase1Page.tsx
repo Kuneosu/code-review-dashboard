@@ -24,9 +24,11 @@ export const Phase1Page: React.FC = () => {
 
   // Handle reset/back button
   const handleReset = () => {
-    if (confirm('Are you sure you want to select a different project? Current progress will be lost.')) {
-      reset();
-    }
+    // VS Code Webview에서는 confirm이 제대로 작동하지 않을 수 있으므로
+    // 직접 reset 호출
+    console.log('Reset button clicked');
+    reset();
+    console.log('Reset completed, fileTree should be null now');
   };
 
   // Show filter configuration and file tree

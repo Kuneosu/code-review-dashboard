@@ -1,0 +1,231 @@
+/**
+ * Python 백엔드 서버 관리자
+ */
+import * as vscode from 'vscode';
+import * as child_process from 'child_process';
+import * as path from 'path';
+import * as fs from 'fs';
+
+export class PythonServerManager {
+  private process: child_process.ChildProcess | null = null;
+  private port: number;
+  private pythonPath: string;
+  private context: vscode.ExtensionContext;
+  private outputChannel: vscode.OutputChannel;
+
+  constructor(context: vscode.ExtensionContext) {
+    this.context = context;
+    this.outputChannel = vscode.window.createOutputChannel('Smart Code Review');
+
+    // 설정에서 값 가져오기
+    const config = vscode.workspace.getConfiguration('smartCodeReview');
+    this.port = config.get<number>('serverPort') || 8000;
+    this.pythonPath = config.get<string>('pythonPath') || 'python3';
+  }
+
+  async start(): Promise<void> {
+    // 이미 실행 중이면 중복 실행 방지
+    if (this.process) {
+      this.outputChannel.appendLine('서버가 이미 실행 중입니다');
+      return;
+    }
+
+    this.outputChannel.appendLine('Python 서버를 시작합니다...');
+
+    // Python 존재 확인
+    const pythonExists = await this.checkPythonInstallation();
+    if (!pythonExists) {
+      throw new Error(
+        'Python 3.9 이상이 필요합니다. https://www.python.org/downloads/ 에서 설치해주세요.'
+      );
+    }
+
+    // 의존성 확인 및 설치
+    await this.ensureDependencies();
+
+    // 서버 시작
+    const serverPath = path.join(this.context.extensionPath, 'backend');
+
+    this.outputChannel.appendLine(`서버 경로: ${serverPath}`);
+    this.outputChannel.appendLine(`Python 경로: ${this.pythonPath}`);
+    this.outputChannel.appendLine(`포트: ${this.port}`);
+
+    this.process = child_process.spawn(
+      this.pythonPath,
+      ['-m', 'uvicorn', 'main:app', '--host', '127.0.0.1', '--port', this.port.toString()],
+      {
+        cwd: serverPath,
+        env: { ...process.env }
+      }
+    );
+
+    // 표준 출력 처리
+    this.process.stdout?.on('data', (data) => {
+      this.outputChannel.appendLine(`[서버] ${data.toString().trim()}`);
+    });
+
+    // 표준 에러 처리
+    this.process.stderr?.on('data', (data) => {
+      const message = data.toString().trim();
+      // 일부 경고는 무시 (hashlib 경고 등)
+      if (!message.includes('blake2') && !message.includes('WARNING')) {
+        this.outputChannel.appendLine(`[서버 에러] ${message}`);
+      }
+    });
+
+    // 프로세스 에러 처리
+    this.process.on('error', (error) => {
+      this.outputChannel.appendLine(`[프로세스 에러] ${error.message}`);
+      vscode.window.showErrorMessage(`서버 시작 실패: ${error.message}`);
+    });
+
+    // 프로세스 종료 처리
+    this.process.on('exit', (code, signal) => {
+      this.outputChannel.appendLine(
+        `서버 프로세스 종료 (코드: ${code}, 시그널: ${signal})`
+      );
+      this.process = null;
+    });
+
+    // 서버가 준비될 때까지 대기
+    await this.waitForServer();
+    this.outputChannel.appendLine('✓ 서버가 성공적으로 시작되었습니다');
+  }
+
+  stop(): void {
+    if (this.process) {
+      this.outputChannel.appendLine('서버를 중지합니다...');
+      this.process.kill('SIGTERM');
+      this.process = null;
+    }
+  }
+
+  getServerUrl(): string {
+    return `http://127.0.0.1:${this.port}`;
+  }
+
+  isRunning(): boolean {
+    return this.process !== null;
+  }
+
+  private async checkPythonInstallation(): Promise<boolean> {
+    const possiblePaths = [
+      this.pythonPath,
+      'python3',
+      'python',
+      '/usr/bin/python3',
+      '/usr/local/bin/python3'
+    ];
+
+    for (const pythonPath of possiblePaths) {
+      try {
+        const result = child_process.spawnSync(pythonPath, ['--version']);
+        if (result.status === 0) {
+          this.pythonPath = pythonPath;
+          const version = result.stdout.toString().trim();
+          this.outputChannel.appendLine(`Python 발견: ${version}`);
+          return true;
+        }
+      } catch (error) {
+        continue;
+      }
+    }
+
+    return false;
+  }
+
+  private async ensureDependencies(): Promise<void> {
+    const backendPath = path.join(this.context.extensionPath, 'backend');
+    const requirementsPath = path.join(backendPath, 'requirements.txt');
+
+    // requirements.txt 생성 (poetry 없이 사용하기 위해)
+    if (!fs.existsSync(requirementsPath)) {
+      const requirements = [
+        'fastapi==0.104.0',
+        'uvicorn[standard]==0.24.0',
+        'pydantic==2.5.0',
+        'httpx==0.25.0',
+        'pathspec==0.11.0',
+        'python-multipart==0.0.6'
+      ].join('\n');
+
+      fs.writeFileSync(requirementsPath, requirements);
+      this.outputChannel.appendLine('requirements.txt 파일을 생성했습니다');
+    }
+
+    // 의존성 설치 확인 마커
+    const markerPath = path.join(
+      this.context.globalStorageUri.fsPath,
+      '.deps-installed'
+    );
+
+    // 디렉토리 생성
+    if (!fs.existsSync(this.context.globalStorageUri.fsPath)) {
+      fs.mkdirSync(this.context.globalStorageUri.fsPath, { recursive: true });
+    }
+
+    // 이미 설치되었는지 확인
+    if (fs.existsSync(markerPath)) {
+      this.outputChannel.appendLine('의존성이 이미 설치되어 있습니다');
+      return;
+    }
+
+    // 의존성 설치
+    this.outputChannel.appendLine('Python 의존성을 설치합니다...');
+
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Smart Code Review: 의존성 설치 중...',
+        cancellable: false
+      },
+      async () => {
+        return new Promise<void>((resolve, reject) => {
+          const installProcess = child_process.spawn(
+            this.pythonPath,
+            ['-m', 'pip', 'install', '-r', requirementsPath, '--user'],
+            { cwd: backendPath }
+          );
+
+          installProcess.stdout?.on('data', (data) => {
+            this.outputChannel.appendLine(`[pip] ${data.toString().trim()}`);
+          });
+
+          installProcess.stderr?.on('data', (data) => {
+            this.outputChannel.appendLine(`[pip] ${data.toString().trim()}`);
+          });
+
+          installProcess.on('close', (code) => {
+            if (code === 0) {
+              fs.writeFileSync(markerPath, new Date().toISOString());
+              this.outputChannel.appendLine('✓ 의존성 설치 완료');
+              resolve();
+            } else {
+              reject(new Error(`pip install 실패 (코드: ${code})`));
+            }
+          });
+        });
+      }
+    );
+  }
+
+  private async waitForServer(maxRetries = 30): Promise<void> {
+    const url = `${this.getServerUrl()}/health`;
+
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const response = await fetch(url);
+        if (response.ok) {
+          return;
+        }
+      } catch (error) {
+        // 서버가 아직 준비되지 않음
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      this.outputChannel.appendLine(`서버 대기 중... (${i + 1}/${maxRetries})`);
+    }
+
+    throw new Error('서버가 제한 시간 내에 시작되지 않았습니다');
+  }
+}

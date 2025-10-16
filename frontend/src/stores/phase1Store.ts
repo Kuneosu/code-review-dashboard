@@ -7,8 +7,6 @@ import {
   FilterConfig,
   ErrorState,
   Language,
-  ScanProjectResponse,
-  ApplyFiltersResponse,
   FilterStats,
 } from '@/types';
 import * as api from '@/utils/api';
@@ -132,7 +130,7 @@ export const usePhase1Store = create<Phase1State>((set, get) => ({
   },
 
   initializeFilterConfig: () => {
-    const { projectPath, detectedLanguage } = get();
+    const { projectPath } = get();
 
     set({
       filterConfig: {

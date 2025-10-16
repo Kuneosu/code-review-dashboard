@@ -51,7 +51,32 @@ export const ProjectSelector: React.FC = () => {
 
   const handleBrowseClick = async () => {
     try {
-      // Check if File System Access API is supported
+      // Check if running in VS Code Webview
+      // @ts-ignore - vscodeApi is injected by VS Code
+      if (typeof window.vscodeApi !== 'undefined') {
+        // VS Code Extension: 네이티브 폴더 선택 다이얼로그 사용
+        // @ts-ignore
+        window.vscodeApi.postMessage({
+          type: 'openFolderPicker'
+        });
+
+        // 응답을 기다립니다 (dashboardPanel.ts에서 처리)
+        const handleFolderSelected = (event: MessageEvent) => {
+          const message = event.data;
+          if (message.type === 'folderSelected') {
+            const selectedPath = message.path;
+            setInputPath(selectedPath);
+            setProjectPath(selectedPath);
+            loadFileTree();
+            window.removeEventListener('message', handleFolderSelected);
+          }
+        };
+
+        window.addEventListener('message', handleFolderSelected);
+        return;
+      }
+
+      // 브라우저 환경: File System Access API 사용
       if ('showDirectoryPicker' in window) {
         // @ts-ignore - showDirectoryPicker is not yet in TypeScript types
         const dirHandle = await window.showDirectoryPicker({

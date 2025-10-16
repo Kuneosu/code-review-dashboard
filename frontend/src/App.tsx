@@ -1,7 +1,6 @@
 /**
  * Main App Component
  */
-import React from 'react';
 import { Phase1Page } from './pages/Phase1Page';
 
 function App() {
