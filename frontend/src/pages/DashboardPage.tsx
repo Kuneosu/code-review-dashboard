@@ -3,19 +3,26 @@
  *
  * Displays analysis results with summary cards, charts, filters, and issue list
  */
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useDashboardStore } from '@/stores/dashboardStore';
+import { useAIAnalysisStore } from '@/stores/aiAnalysisStore';
 import { SummaryCards } from '@/components/SummaryCards';
 import { Charts } from '@/components/Charts';
 import { FilterBar } from '@/components/FilterBar';
 import { IssueList } from '@/components/IssueList';
 import { IssueDetailModal } from '@/components/IssueDetailModal';
+import { AIProgressModal } from '@/components/AIProgressModal';
+import { AIResultModal } from '@/components/AIResultModal';
 import { Issue } from '@/types';
 
 export const DashboardPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  // AI Analysis modal state
+  const [showAIProgress, setShowAIProgress] = useState(false);
+  const [showAIResults, setShowAIResults] = useState(false);
 
   const {
     result,
@@ -26,11 +33,25 @@ export const DashboardPage: React.FC = () => {
     sortOrder,
     selectedIssue,
     isModalOpen,
+    selectedIssueIds,
+    selectAll,
     loadResult,
     selectIssue,
     closeModal,
     reset,
+    toggleIssueSelection,
+    toggleSelectAll,
+    clearSelection,
+    getSelectedIssues,
   } = useDashboardStore();
+
+  const {
+    checkOllamaHealth,
+    initializeOllama,
+    startAIAnalysis,
+    cancelAnalysis,
+    reset: resetAI,
+  } = useAIAnalysisStore();
 
   const analysisId = searchParams.get('id');
 
@@ -45,9 +66,65 @@ export const DashboardPage: React.FC = () => {
     return () => {
       // Cleanup on unmount
       reset();
+      clearSelection();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysisId]);
+
+  // AI Analysis handler
+  const handleAIAnalysis = async () => {
+    const selectedIssues = getSelectedIssues();
+
+    if (selectedIssues.length === 0) {
+      alert('Please select at least one issue to analyze');
+      return;
+    }
+
+    if (!result) return;
+
+    // Check Ollama health first
+    await checkOllamaHealth();
+
+    // Initialize Ollama
+    try {
+      await initializeOllama();
+    } catch (error: any) {
+      alert(`Failed to initialize AI: ${error.message || 'Unknown error'}`);
+      return;
+    }
+
+    // Start analysis
+    try {
+      setShowAIProgress(true);
+      await startAIAnalysis(selectedIssues, result.project_path);
+    } catch (error: any) {
+      setShowAIProgress(false);
+      alert(`Failed to start AI analysis: ${error.message || 'Unknown error'}`);
+    }
+  };
+
+  // Handle AI analysis completion
+  const handleAIComplete = () => {
+    setShowAIProgress(false);
+    setShowAIResults(true);
+  };
+
+  // Handle AI cancel
+  const handleAICancel = async () => {
+    // Cancel the backend analysis
+    await cancelAnalysis();
+
+    // Close modal and reset
+    setShowAIProgress(false);
+    resetAI();
+  };
+
+  // Handle AI results close
+  const handleAIResultsClose = () => {
+    setShowAIResults(false);
+    clearSelection();
+    resetAI();
+  };
 
   // Loading state
   if (loading) {
@@ -220,6 +297,10 @@ export const DashboardPage: React.FC = () => {
         <IssueList
           groupedIssues={groupedIssues}
           onSelectIssue={selectIssue}
+          selectedIssueIds={selectedIssueIds}
+          onToggleSelection={toggleIssueSelection}
+          selectAll={selectAll}
+          onToggleSelectAll={toggleSelectAll}
         />
 
         {/* Issue Detail Modal */}
@@ -245,7 +326,28 @@ export const DashboardPage: React.FC = () => {
           >
             🔄 Analyze Again
           </button>
+          <button
+            onClick={handleAIAnalysis}
+            disabled={selectedIssueIds.size === 0}
+            className="px-6 py-3 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <span>🤖</span>
+            AI Analysis ({selectedIssueIds.size})
+          </button>
         </div>
+
+        {/* AI Progress Modal */}
+        {showAIProgress && (
+          <AIProgressModal
+            onComplete={handleAIComplete}
+            onCancel={handleAICancel}
+          />
+        )}
+
+        {/* AI Results Modal */}
+        {showAIResults && (
+          <AIResultModal onClose={handleAIResultsClose} />
+        )}
       </div>
     </div>
   );

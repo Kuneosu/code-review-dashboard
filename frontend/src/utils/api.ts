@@ -197,3 +197,48 @@ export async function cancelAnalysis(analysisId: string): Promise<any> {
 export async function getAnalysisResult(analysisId: string): Promise<any> {
   return fetchAPI<any>(`/analysis/${analysisId}/result`);
 }
+
+// Phase 3: AI Analysis APIs
+
+export async function checkOllamaHealth(): Promise<any> {
+  return fetchAPI<any>('/ai/health');
+}
+
+export async function initializeOllama(): Promise<any> {
+  return fetchAPI<any>('/ai/initialize', {
+    method: 'POST',
+  });
+}
+
+export async function startAIAnalysis(request: {
+  project_path: string;
+  issues: Array<{
+    file: string;
+    line: number;
+    column: number;
+    severity: string;
+    category: string;
+    rule: string;
+    message: string;
+    tool: string;
+  }>;
+}): Promise<any> {
+  return fetchAPI<any>('/ai/analyze', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
+export async function getAIQueueStatus(queueId: string): Promise<any> {
+  return fetchAPI<any>(`/ai/queue/${queueId}/status`);
+}
+
+export async function getAIResult(resultId: string): Promise<any> {
+  return fetchAPI<any>(`/ai/result/${resultId}`);
+}
+
+export async function cancelAIAnalysis(queueId: string): Promise<any> {
+  return fetchAPI<any>(`/ai/queue/${queueId}/cancel`, {
+    method: 'POST',
+  });
+}

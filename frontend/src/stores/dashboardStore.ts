@@ -28,6 +28,10 @@ interface DashboardState {
   selectedIssue: Issue | null;
   isModalOpen: boolean;
 
+  // AI Analysis Selection
+  selectedIssueIds: Set<string>;
+  selectAll: boolean;
+
   // Actions
   loadResult: (analysisId: string) => Promise<void>;
   setFilter: (type: 'severity' | 'category' | 'file', value: any) => void;
@@ -37,6 +41,12 @@ interface DashboardState {
   closeModal: () => void;
   exportResult: (format: 'json' | 'md') => void;
   reset: () => void;
+
+  // AI Analysis Selection Actions
+  toggleIssueSelection: (issueId: string) => void;
+  toggleSelectAll: () => void;
+  clearSelection: () => void;
+  getSelectedIssues: () => Issue[];
 }
 
 const initialState = {
@@ -52,6 +62,8 @@ const initialState = {
   sortOrder: 'asc' as const,
   selectedIssue: null,
   isModalOpen: false,
+  selectedIssueIds: new Set<string>(),
+  selectAll: false,
 };
 
 export const useDashboardStore = create<DashboardState>((set, get) => ({
@@ -117,6 +129,47 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 
   reset: () => {
     set(initialState);
+  },
+
+  // AI Analysis Selection Actions
+  toggleIssueSelection: (issueId: string) => {
+    const { selectedIssueIds } = get();
+    const newSet = new Set(selectedIssueIds);
+
+    if (newSet.has(issueId)) {
+      newSet.delete(issueId);
+    } else {
+      newSet.add(issueId);
+    }
+
+    set({ selectedIssueIds: newSet, selectAll: false });
+  },
+
+  toggleSelectAll: () => {
+    const { selectAll, result } = get();
+
+    if (!result) return;
+
+    if (selectAll) {
+      // Deselect all
+      set({ selectedIssueIds: new Set(), selectAll: false });
+    } else {
+      // Select all
+      const allIds = new Set(result.issues.map((issue) => issue.id));
+      set({ selectedIssueIds: allIds, selectAll: true });
+    }
+  },
+
+  clearSelection: () => {
+    set({ selectedIssueIds: new Set(), selectAll: false });
+  },
+
+  getSelectedIssues: () => {
+    const { result, selectedIssueIds } = get();
+
+    if (!result) return [];
+
+    return result.issues.filter((issue) => selectedIssueIds.has(issue.id));
   },
 }));
 
