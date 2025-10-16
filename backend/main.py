@@ -4,6 +4,8 @@ Smart Code Review - Backend Main Application
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.phase1 import router as phase1_router
+from api.phase2 import router as phase2_router
+from api.phase3 import router as phase3_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -23,6 +25,8 @@ app.add_middleware(
 
 # Include routers
 app.include_router(phase1_router)
+app.include_router(phase2_router)
+app.include_router(phase3_router)
 
 
 @app.get("/")
@@ -32,7 +36,7 @@ async def root():
         "name": "Smart Code Review API",
         "version": "0.1.0",
         "status": "running",
-        "phase": "Phase 1: Project Upload & File Filtering"
+        "phase": "Phase 3: AI Analysis with Ollama"
     }
 
 

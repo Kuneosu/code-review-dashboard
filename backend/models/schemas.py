@@ -21,6 +21,32 @@ class Language(str, Enum):
     UNKNOWN = "unknown"
 
 
+class AnalysisStatus(str, Enum):
+    """Analysis task status"""
+    IDLE = "IDLE"
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    PAUSED = "PAUSED"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class Severity(str, Enum):
+    """Issue severity levels"""
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class Category(str, Enum):
+    """Issue categories"""
+    SECURITY = "security"
+    PERFORMANCE = "performance"
+    QUALITY = "quality"
+
+
 class FileNode(BaseModel):
     """File tree node structure"""
     name: str
@@ -112,6 +138,72 @@ class ErrorResponse(BaseModel):
     path: Optional[str] = None
     recoverable: bool = False
     details: Optional[Dict[str, Any]] = None
+
+
+# Phase 2: Analysis Models
+
+class Issue(BaseModel):
+    """Code analysis issue"""
+    id: Optional[str] = None
+    file: str
+    line: int
+    column: int = 0
+    severity: Severity
+    category: Category
+    rule: str
+    message: str
+    code_snippet: Optional[str] = None
+    tool: str  # ESLint, Bandit, etc.
+
+
+class LiveSummary(BaseModel):
+    """Real-time issue summary"""
+    critical: int = 0
+    high: int = 0
+    medium: int = 0
+    low: int = 0
+    total: int = 0
+
+
+class AnalysisStartRequest(BaseModel):
+    """Request to start analysis"""
+    project_path: str
+    selected_files: List[str]
+    filter_config: Optional[FilterConfig] = None
+    categories: List[Category] = [Category.SECURITY, Category.PERFORMANCE, Category.QUALITY]
+
+
+class AnalysisStartResponse(BaseModel):
+    """Response from starting analysis"""
+    analysis_id: str
+    status: AnalysisStatus
+    message: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AnalysisStatusResponse(BaseModel):
+    """Response from status query"""
+    analysis_id: str
+    status: AnalysisStatus
+    progress: float  # 0.0 to 1.0
+    current_file: Optional[str] = None
+    completed_files: int = 0
+    total_files: int = 0
+    elapsed_time: int = 0  # seconds
+    estimated_remaining: int = 0  # seconds
+    live_summary: Optional[LiveSummary] = None
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AnalysisResultResponse(BaseModel):
+    """Response with complete analysis results"""
+    analysis_id: str
+    status: AnalysisStatus
+    summary: LiveSummary
+    issues: List[Issue]
+    completed_at: Optional[datetime] = None
+    elapsed_time: int = 0
+    total_files: int = 0
 
 
 # Update forward references

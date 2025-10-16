@@ -83,3 +83,34 @@ export interface ExportConfigResponse {
   config_json: string;
   exported_at: string;
 }
+
+// Phase 2: Analysis types
+export interface Issue {
+  id: string;
+  file: string;
+  line: number;
+  column: number;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  category: 'security' | 'performance' | 'quality';
+  rule: string;
+  message: string;
+  code_snippet: string;
+  tool: string;
+}
+
+export interface AnalysisResult {
+  analysis_id: string;
+  status: 'COMPLETED';
+  project_path: string;  // Project path for VS Code file opening
+  summary: {
+    total: number;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+  issues: Issue[];
+  completed_at: string;
+  elapsed_time: number;
+  total_files: number;
+}

@@ -151,6 +151,36 @@ export class DashboardPanel {
       case 'log':
         console.log('[Webview]', message.message);
         break;
+
+      case 'openFile':
+        // Open file in editor at specific line
+        try {
+          // Construct absolute path from project path + relative file path
+          const absolutePath = path.join(message.projectPath, message.file);
+          const fileUri = vscode.Uri.file(absolutePath);
+          const document = await vscode.workspace.openTextDocument(fileUri);
+          const editor = await vscode.window.showTextDocument(document);
+
+          // Navigate to specific line and column
+          const position = new vscode.Position(
+            Math.max(0, message.line - 1), // 0-indexed
+            Math.max(0, message.column - 1) // 0-indexed
+          );
+          editor.selection = new vscode.Selection(position, position);
+          editor.revealRange(
+            new vscode.Range(position, position),
+            vscode.TextEditorRevealType.InCenter
+          );
+
+          vscode.window.showInformationMessage(
+            `Opened ${path.basename(message.file)} at line ${message.line}`
+          );
+        } catch (error: any) {
+          vscode.window.showErrorMessage(
+            `Failed to open file: ${error.message}`
+          );
+        }
+        break;
     }
   }
 
