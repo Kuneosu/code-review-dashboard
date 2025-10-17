@@ -5,17 +5,22 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { PythonServerManager } from './pythonServer';
+import { SetupManager } from './setupManager';
 
 export class DashboardPanel {
   public static currentPanel: DashboardPanel | undefined;
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
-  private readonly _serverManager: PythonServerManager;
+  private readonly _serverManager: PythonServerManager | null;
+  private readonly _setupManager: SetupManager;
+  private readonly _setupMode: boolean;
   private _disposables: vscode.Disposable[] = [];
 
   public static createOrShow(
     extensionUri: vscode.Uri,
-    serverManager: PythonServerManager
+    serverManager: PythonServerManager | null,
+    setupManager: SetupManager,
+    setupMode: boolean = false
   ) {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
@@ -45,18 +50,24 @@ export class DashboardPanel {
     DashboardPanel.currentPanel = new DashboardPanel(
       panel,
       extensionUri,
-      serverManager
+      serverManager,
+      setupManager,
+      setupMode
     );
   }
 
   private constructor(
     panel: vscode.WebviewPanel,
     extensionUri: vscode.Uri,
-    serverManager: PythonServerManager
+    serverManager: PythonServerManager | null,
+    setupManager: SetupManager,
+    setupMode: boolean
   ) {
     this._panel = panel;
     this._extensionUri = extensionUri;
     this._serverManager = serverManager;
+    this._setupManager = setupManager;
+    this._setupMode = setupMode;
 
     // HTML 콘텐츠 설정
     this._update();
@@ -112,6 +123,16 @@ export class DashboardPanel {
 
       case 'apiRequest':
         // Python 서버로 API 요청 프록시
+        if (!this._serverManager) {
+          this._panel.webview.postMessage({
+            type: 'apiResponse',
+            id: message.id,
+            error: 'Server not initialized',
+            status: 500
+          });
+          break;
+        }
+
         try {
           const url = `${this._serverManager.getServerUrl()}${message.endpoint}`;
           const response = await fetch(url, {
@@ -137,6 +158,128 @@ export class DashboardPanel {
             error: error.message,
             status: 500
           });
+        }
+        break;
+
+      case 'checkSetupStatus':
+        // Setup Wizard: 설정 상태 확인
+        try {
+          const status = await this._setupManager.checkSetupStatus();
+          this._panel.webview.postMessage({
+            type: 'setupStatus',
+            status
+          });
+        } catch (error: any) {
+          console.error('[Setup] Status check failed:', error);
+        }
+        break;
+
+      case 'installDependencies':
+        // Setup Wizard: Python 의존성 설치
+        try {
+          await this._setupManager.installDependencies((msg) => {
+            this._panel.webview.postMessage({
+              type: 'installProgress',
+              message: msg
+            });
+          });
+
+          // 설치 완료 후 상태 업데이트
+          const status = await this._setupManager.checkSetupStatus();
+          this._panel.webview.postMessage({
+            type: 'setupStatus',
+            status
+          });
+        } catch (error: any) {
+          vscode.window.showErrorMessage(
+            `의존성 설치 실패: ${error.message}`
+          );
+        }
+        break;
+
+      case 'installOllama':
+        // Setup Wizard: Ollama 설치
+        try {
+          await this._setupManager.installOllama();
+
+          // 설치 완료 후 상태 업데이트
+          const status = await this._setupManager.checkSetupStatus();
+          this._panel.webview.postMessage({
+            type: 'setupStatus',
+            status
+          });
+        } catch (error: any) {
+          const installUrl =
+            this._setupManager.getOllamaManager().getInstallGuideUrl();
+          vscode.window.showErrorMessage(
+            `Ollama 자동 설치 실패: ${error.message}. ${installUrl}에서 수동으로 설치해주세요.`,
+            'Open Install Guide'
+          ).then((selection) => {
+            if (selection === 'Open Install Guide') {
+              vscode.env.openExternal(vscode.Uri.parse(installUrl));
+            }
+          });
+        }
+        break;
+
+      case 'startOllama':
+        // Setup Wizard: Ollama 서버 시작
+        try {
+          await this._setupManager.startOllama();
+
+          // 시작 완료 후 상태 업데이트
+          const status = await this._setupManager.checkSetupStatus();
+          this._panel.webview.postMessage({
+            type: 'setupStatus',
+            status
+          });
+        } catch (error: any) {
+          vscode.window.showErrorMessage(
+            `Ollama 서버 시작 실패: ${error.message}`
+          );
+        }
+        break;
+
+      case 'downloadModel':
+        // Setup Wizard: 모델 다운로드
+        try {
+          await this._setupManager.downloadModel((progress) => {
+            this._panel.webview.postMessage({
+              type: 'modelProgress',
+              progress
+            });
+          });
+
+          // 다운로드 완료 후 상태 업데이트
+          const status = await this._setupManager.checkSetupStatus();
+          this._panel.webview.postMessage({
+            type: 'setupStatus',
+            status
+          });
+        } catch (error: any) {
+          vscode.window.showErrorMessage(
+            `모델 다운로드 실패: ${error.message}`
+          );
+        }
+        break;
+
+      case 'completeSetup':
+        // Setup Wizard: 설정 완료
+        try {
+          await this._setupManager.completeSetup(message.skipAI);
+
+          vscode.window.showInformationMessage(
+            'Smart Code Review 설정이 완료되었습니다! VS Code를 재시작해주세요.',
+            'Reload Window'
+          ).then((selection) => {
+            if (selection === 'Reload Window') {
+              vscode.commands.executeCommand('workbench.action.reloadWindow');
+            }
+          });
+        } catch (error: any) {
+          vscode.window.showErrorMessage(
+            `설정 완료 실패: ${error.message}`
+          );
         }
         break;
 
@@ -218,13 +361,14 @@ export class DashboardPanel {
         `$1${scriptUri}/`
       );
 
-      // VS Code Webview API 주입
+      // VS Code Webview API 및 Setup Mode 주입
       html = html.replace(
         '</head>',
         `
         <script>
           const vscode = acquireVsCodeApi();
           window.vscodeApi = vscode;
+          window.__SETUP_MODE__ = ${this._setupMode};
         </script>
         </head>
         `

@@ -41,7 +41,7 @@ const vscode = __importStar(require("vscode"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 class DashboardPanel {
-    static createOrShow(extensionUri, serverManager) {
+    static createOrShow(extensionUri, serverManager, setupManager, setupMode = false) {
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
@@ -59,13 +59,15 @@ class DashboardPanel {
                 vscode.Uri.joinPath(extensionUri, 'frontend', 'dist')
             ]
         });
-        DashboardPanel.currentPanel = new DashboardPanel(panel, extensionUri, serverManager);
+        DashboardPanel.currentPanel = new DashboardPanel(panel, extensionUri, serverManager, setupManager, setupMode);
     }
-    constructor(panel, extensionUri, serverManager) {
+    constructor(panel, extensionUri, serverManager, setupManager, setupMode) {
         this._disposables = [];
         this._panel = panel;
         this._extensionUri = extensionUri;
         this._serverManager = serverManager;
+        this._setupManager = setupManager;
+        this._setupMode = setupMode;
         // HTML 콘텐츠 설정
         this._update();
         // 패널 닫힘 이벤트 처리
@@ -107,6 +109,15 @@ class DashboardPanel {
                 break;
             case 'apiRequest':
                 // Python 서버로 API 요청 프록시
+                if (!this._serverManager) {
+                    this._panel.webview.postMessage({
+                        type: 'apiResponse',
+                        id: message.id,
+                        error: 'Server not initialized',
+                        status: 500
+                    });
+                    break;
+                }
                 try {
                     const url = `${this._serverManager.getServerUrl()}${message.endpoint}`;
                     const response = await fetch(url, {
@@ -131,6 +142,108 @@ class DashboardPanel {
                         error: error.message,
                         status: 500
                     });
+                }
+                break;
+            case 'checkSetupStatus':
+                // Setup Wizard: 설정 상태 확인
+                try {
+                    const status = await this._setupManager.checkSetupStatus();
+                    this._panel.webview.postMessage({
+                        type: 'setupStatus',
+                        status
+                    });
+                }
+                catch (error) {
+                    console.error('[Setup] Status check failed:', error);
+                }
+                break;
+            case 'installDependencies':
+                // Setup Wizard: Python 의존성 설치
+                try {
+                    await this._setupManager.installDependencies((msg) => {
+                        this._panel.webview.postMessage({
+                            type: 'installProgress',
+                            message: msg
+                        });
+                    });
+                    // 설치 완료 후 상태 업데이트
+                    const status = await this._setupManager.checkSetupStatus();
+                    this._panel.webview.postMessage({
+                        type: 'setupStatus',
+                        status
+                    });
+                }
+                catch (error) {
+                    vscode.window.showErrorMessage(`의존성 설치 실패: ${error.message}`);
+                }
+                break;
+            case 'installOllama':
+                // Setup Wizard: Ollama 설치
+                try {
+                    await this._setupManager.installOllama();
+                    // 설치 완료 후 상태 업데이트
+                    const status = await this._setupManager.checkSetupStatus();
+                    this._panel.webview.postMessage({
+                        type: 'setupStatus',
+                        status
+                    });
+                }
+                catch (error) {
+                    const installUrl = this._setupManager.getOllamaManager().getInstallGuideUrl();
+                    vscode.window.showErrorMessage(`Ollama 자동 설치 실패: ${error.message}. ${installUrl}에서 수동으로 설치해주세요.`, 'Open Install Guide').then((selection) => {
+                        if (selection === 'Open Install Guide') {
+                            vscode.env.openExternal(vscode.Uri.parse(installUrl));
+                        }
+                    });
+                }
+                break;
+            case 'startOllama':
+                // Setup Wizard: Ollama 서버 시작
+                try {
+                    await this._setupManager.startOllama();
+                    // 시작 완료 후 상태 업데이트
+                    const status = await this._setupManager.checkSetupStatus();
+                    this._panel.webview.postMessage({
+                        type: 'setupStatus',
+                        status
+                    });
+                }
+                catch (error) {
+                    vscode.window.showErrorMessage(`Ollama 서버 시작 실패: ${error.message}`);
+                }
+                break;
+            case 'downloadModel':
+                // Setup Wizard: 모델 다운로드
+                try {
+                    await this._setupManager.downloadModel((progress) => {
+                        this._panel.webview.postMessage({
+                            type: 'modelProgress',
+                            progress
+                        });
+                    });
+                    // 다운로드 완료 후 상태 업데이트
+                    const status = await this._setupManager.checkSetupStatus();
+                    this._panel.webview.postMessage({
+                        type: 'setupStatus',
+                        status
+                    });
+                }
+                catch (error) {
+                    vscode.window.showErrorMessage(`모델 다운로드 실패: ${error.message}`);
+                }
+                break;
+            case 'completeSetup':
+                // Setup Wizard: 설정 완료
+                try {
+                    await this._setupManager.completeSetup(message.skipAI);
+                    vscode.window.showInformationMessage('Smart Code Review 설정이 완료되었습니다! VS Code를 재시작해주세요.', 'Reload Window').then((selection) => {
+                        if (selection === 'Reload Window') {
+                            vscode.commands.executeCommand('workbench.action.reloadWindow');
+                        }
+                    });
+                }
+                catch (error) {
+                    vscode.window.showErrorMessage(`설정 완료 실패: ${error.message}`);
                 }
                 break;
             case 'showError':
@@ -180,11 +293,12 @@ class DashboardPanel {
             // HTML 수정: 스크립트 및 스타일 경로 변경
             html = html.replace(/(<script[^>]*src=")\/assets\//g, `$1${scriptUri}/`);
             html = html.replace(/(<link[^>]*href=")\/assets\//g, `$1${scriptUri}/`);
-            // VS Code Webview API 주입
+            // VS Code Webview API 및 Setup Mode 주입
             html = html.replace('</head>', `
         <script>
           const vscode = acquireVsCodeApi();
           window.vscodeApi = vscode;
+          window.__SETUP_MODE__ = ${this._setupMode};
         </script>
         </head>
         `);

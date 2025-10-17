@@ -25,6 +25,14 @@
       {
         "command": "smart-code-review.analyzeCurrentProject",
         "title": "Smart Code Review: Analyze Current Project"
+      },
+      {
+        "command": "smart-code-review.setup",
+        "title": "Smart Code Review: Setup Wizard"
+      },
+      {
+        "command": "smart-code-review.resetSetup",
+        "title": "Smart Code Review: Reset Setup (Dev Only)"
       }
     ],
     "configuration": {
