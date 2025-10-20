@@ -1,13 +1,14 @@
 /**
  * Phase 1 Page: Project Upload & File Filtering
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePhase1Store } from '@/stores/phase1Store';
 import { usePhase2Store } from '@/stores/phase2Store';
 import { ProjectSelector } from '@/components/ProjectSelector';
 import { FilterConfiguration } from '@/components/FilterConfiguration';
 import { FileTreeViewer } from '@/components/FileTreeViewer';
+import { Analyzer } from '@/types';
 
 export const Phase1Page: React.FC = () => {
   const navigate = useNavigate();
@@ -21,6 +22,14 @@ export const Phase1Page: React.FC = () => {
   } = usePhase1Store();
   const { startAnalysis } = usePhase2Store();
 
+  // Analyzer selection state
+  const [selectedAnalyzers, setSelectedAnalyzers] = useState<Analyzer[]>([
+    Analyzer.ESLINT,
+    Analyzer.BANDIT,
+    Analyzer.CUSTOM_PATTERN,
+    Analyzer.SEMGREP,
+  ]);
+
   // Show project selector if no file tree
   if (!fileTree) {
     return <ProjectSelector />;
@@ -28,11 +37,18 @@ export const Phase1Page: React.FC = () => {
 
   // Handle reset/back button
   const handleReset = () => {
-    // VS Code Webview에서는 confirm이 제대로 작동하지 않을 수 있으므로
-    // 직접 reset 호출
     console.log('Reset button clicked');
     reset();
     console.log('Reset completed, fileTree should be null now');
+  };
+
+  // Handle analyzer toggle
+  const handleAnalyzerToggle = (analyzer: Analyzer) => {
+    setSelectedAnalyzers((prev) =>
+      prev.includes(analyzer)
+        ? prev.filter((a) => a !== analyzer)
+        : [...prev, analyzer]
+    );
   };
 
   // Handle start analysis
@@ -42,13 +58,42 @@ export const Phase1Page: React.FC = () => {
       return;
     }
 
+    if (selectedAnalyzers.length === 0) {
+      alert('최소 1개 이상의 분석기를 선택해주세요');
+      return;
+    }
+
     try {
-      await startAnalysis(selectedFiles, projectPath);
+      await startAnalysis(selectedFiles, projectPath, selectedAnalyzers);
       // Navigate to Phase 2 page
       navigate('/analysis');
     } catch (error: any) {
       alert(`분석 시작 실패: ${error.message}`);
     }
+  };
+
+  // Analyzer metadata
+  const analyzerInfo: Record<Analyzer, { label: string; description: string; fileTypes: string }> = {
+    [Analyzer.ESLINT]: {
+      label: 'ESLint',
+      description: 'JavaScript/TypeScript 정적 분석',
+      fileTypes: '.js, .ts, .jsx, .tsx',
+    },
+    [Analyzer.BANDIT]: {
+      label: 'Bandit',
+      description: 'Python 보안 취약점 분석',
+      fileTypes: '.py',
+    },
+    [Analyzer.CUSTOM_PATTERN]: {
+      label: 'Custom Pattern',
+      description: '커스텀 보안 패턴 매칭',
+      fileTypes: 'All files',
+    },
+    [Analyzer.SEMGREP]: {
+      label: 'Semgrep',
+      description: '고급 다중 언어 보안 분석 (5000+ 규칙)',
+      fileTypes: 'All files',
+    },
   };
 
   // Show filter configuration and file tree
@@ -102,12 +147,45 @@ export const Phase1Page: React.FC = () => {
               </div>
             )}
 
+            {/* Analyzer Selection */}
+            {selectedFiles.length > 0 && (
+              <div className="mt-4 bg-white rounded-lg shadow-md p-4">
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Select Analyzers</h3>
+                <div className="space-y-3">
+                  {Object.entries(analyzerInfo).map(([analyzer, info]) => (
+                    <label
+                      key={analyzer}
+                      className="flex items-start cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedAnalyzers.includes(analyzer as Analyzer)}
+                        onChange={() => handleAnalyzerToggle(analyzer as Analyzer)}
+                        className="mt-1 mr-3"
+                      />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-gray-800">{info.label}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">{info.description}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          Files: {info.fileTypes}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                {selectedAnalyzers.length === 0 && (
+                  <p className="text-xs text-red-500 mt-2">⚠️ 최소 1개 이상 선택해주세요</p>
+                )}
+              </div>
+            )}
+
             {/* Action Buttons */}
             {selectedFiles.length > 0 && (
               <div className="mt-4">
                 <button
                   onClick={handleStartAnalysis}
-                  className="w-full px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors"
+                  disabled={selectedAnalyzers.length === 0}
+                  className="w-full px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
                   Start Analysis →
                 </button>

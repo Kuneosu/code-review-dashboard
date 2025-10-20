@@ -1,0 +1,92 @@
+rules:
+  # Direct eval() detection (simpler than taint analysis)
+  - id: detect-eval-usage
+    message: "Detected use of eval() which can lead to code injection vulnerabilities"
+    severity: ERROR
+    languages:
+      - javascript
+      - typescript
+    patterns:
+      - pattern: eval(...)
+    metadata:
+      category: security
+      cwe: "CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code"
+      owasp: "A03:2021 - Injection"
+
+  # console.log detection
+  - id: detect-console-log
+    message: "console.log() found - may expose sensitive information in production"
+    severity: WARNING
+    languages:
+      - javascript
+      - typescript
+    patterns:
+      - pattern: console.log(...)
+    metadata:
+      category: security
+      cwe: "CWE-532: Insertion of Sensitive Information into Log File"
+
+  # Hardcoded passwords/secrets
+  - id: hardcoded-password
+    message: "Hardcoded password detected - use environment variables instead"
+    severity: ERROR
+    languages:
+      - javascript
+      - typescript
+    pattern-regex: "(password|secret|api_key|apikey|token|auth)\\s*=\\s*['\"][^'\"]{6,}['\"]"
+    metadata:
+      category: security
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      owasp: "A07:2021 - Identification and Authentication Failures"
+
+  # TODO/FIXME comments
+  - id: todo-fixme-comments
+    message: "TODO/FIXME comment found - indicates incomplete or problematic code"
+    severity: INFO
+    languages:
+      - javascript
+      - typescript
+      - python
+    patterns:
+      - pattern-regex: "(TODO|FIXME):"
+    metadata:
+      category: quality
+
+  # Python eval() detection
+  - id: python-eval-usage
+    message: "Detected use of eval() which can lead to code injection vulnerabilities"
+    severity: ERROR
+    languages:
+      - python
+    patterns:
+      - pattern: eval(...)
+    metadata:
+      category: security
+      cwe: "CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code"
+
+  # Python exec() detection
+  - id: python-exec-usage
+    message: "Detected use of exec() which can lead to code injection vulnerabilities"
+    severity: ERROR
+    languages:
+      - python
+    patterns:
+      - pattern: exec(...)
+    metadata:
+      category: security
+      cwe: "CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code"
+
+  # setTimeout/setInterval with string
+  - id: dangerous-settimeout
+    message: "setTimeout/setInterval with string argument can lead to code injection"
+    severity: WARNING
+    languages:
+      - javascript
+      - typescript
+    patterns:
+      - pattern-either:
+          - pattern: setTimeout("...", ...)
+          - pattern: setInterval("...", ...)
+    metadata:
+      category: security
+      cwe: "CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code"

@@ -30,6 +30,8 @@ export class PythonServerManager {
       return;
     }
 
+    // Output Channel을 보이게 함
+    this.outputChannel.show(true);
     this.outputChannel.appendLine('Python 서버를 시작합니다...');
 
     // Python 존재 확인
@@ -61,15 +63,29 @@ export class PythonServerManager {
 
     // 표준 출력 처리
     this.process.stdout?.on('data', (data) => {
-      this.outputChannel.appendLine(`[서버] ${data.toString().trim()}`);
+      const message = data.toString().trim();
+      if (message) {
+        this.outputChannel.appendLine(`${message}`);
+      }
     });
 
     // 표준 에러 처리
     this.process.stderr?.on('data', (data) => {
       const message = data.toString().trim();
-      // 일부 경고는 무시 (hashlib 경고 등)
-      if (!message.includes('blake2') && !message.includes('WARNING')) {
-        this.outputChannel.appendLine(`[서버 에러] ${message}`);
+
+      // 무시할 메시지들 (Python/Semgrep 내부 이슈)
+      const ignoredPatterns = [
+        'blake2',                           // Python hashlib 빌드 이슈
+        'ERROR:root:code for hash',        // hashlib 에러
+        'Traceback (most recent call last)', // hashlib 트레이스백
+        'File "/Users/',                    // hashlib 트레이스백 경로
+        'ValueError: unsupported hash',     // hashlib ValueError
+        'DEBUG:semgrep.app.auth'           // Semgrep auth 디버그 (불필요)
+      ];
+
+      // 패턴에 매치되지 않으면 출력
+      if (!ignoredPatterns.some(pattern => message.includes(pattern))) {
+        this.outputChannel.appendLine(`${message}`);
       }
     });
 
@@ -109,7 +125,28 @@ export class PythonServerManager {
   }
 
   private async checkPythonInstallation(): Promise<boolean> {
+    // 1. 프로젝트 루트의 .python-version 파일 확인
+    const pythonVersionFile = path.join(this.context.extensionPath, '.python-version');
+    let pyenvPythonPath: string | null = null;
+
+    if (fs.existsSync(pythonVersionFile)) {
+      try {
+        const version = fs.readFileSync(pythonVersionFile, 'utf-8').trim();
+        // pyenv의 Python 경로 생성
+        const homeDir = process.env.HOME || process.env.USERPROFILE;
+        if (homeDir) {
+          pyenvPythonPath = path.join(homeDir, '.pyenv', 'versions', version, 'bin', 'python3');
+          this.outputChannel.appendLine(`[DEBUG] .python-version 발견: ${version}`);
+          this.outputChannel.appendLine(`[DEBUG] pyenv 경로: ${pyenvPythonPath}`);
+        }
+      } catch (error) {
+        this.outputChannel.appendLine(`[DEBUG] .python-version 읽기 실패: ${error}`);
+      }
+    }
+
+    // pyenv 경로를 최우선으로 확인
     const possiblePaths = [
+      ...(pyenvPythonPath ? [pyenvPythonPath] : []),
       this.pythonPath,
       'python3',
       'python',
@@ -124,6 +161,7 @@ export class PythonServerManager {
           this.pythonPath = pythonPath;
           const version = result.stdout.toString().trim();
           this.outputChannel.appendLine(`Python 발견: ${version}`);
+          this.outputChannel.appendLine(`사용할 경로: ${this.pythonPath}`);
           return true;
         }
       } catch (error) {

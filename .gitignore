@@ -49,6 +49,7 @@ Thumbs.db
 # Project specific
 .code_review_data/
 *.log
+backend/config/semgrep-rules/
 
 # Environment
 .env

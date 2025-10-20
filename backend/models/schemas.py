@@ -47,6 +47,14 @@ class Category(str, Enum):
     QUALITY = "quality"
 
 
+class Analyzer(str, Enum):
+    """Available code analyzers"""
+    ESLINT = "eslint"  # JavaScript/TypeScript (ESLint)
+    BANDIT = "bandit"  # Python security (Bandit)
+    CUSTOM_PATTERN = "custom_pattern"  # Custom security patterns
+    SEMGREP = "semgrep"  # Advanced multi-language security analysis
+
+
 class FileNode(BaseModel):
     """File tree node structure"""
     name: str
@@ -170,6 +178,7 @@ class AnalysisStartRequest(BaseModel):
     selected_files: List[str]
     filter_config: Optional[FilterConfig] = None
     categories: List[Category] = [Category.SECURITY, Category.PERFORMANCE, Category.QUALITY]
+    analyzers: List[Analyzer] = [Analyzer.ESLINT, Analyzer.BANDIT, Analyzer.CUSTOM_PATTERN, Analyzer.SEMGREP]
 
 
 class AnalysisStartResponse(BaseModel):

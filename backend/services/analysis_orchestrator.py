@@ -10,11 +10,13 @@ from models.schemas import (
     Issue,
     LiveSummary,
     Severity,
-    Category
+    Category,
+    Analyzer
 )
 from services.javascript_analyzer import JavaScriptAnalyzer
 from services.python_analyzer import PythonAnalyzer
 from services.custom_pattern_analyzer import CustomPatternAnalyzer
+from services.semgrep_analyzer import SemgrepAnalyzer
 
 
 class AnalysisTask:
@@ -25,12 +27,14 @@ class AnalysisTask:
         analysis_id: str,
         project_path: str,
         files: List[str],
-        categories: List[Category]
+        categories: List[Category],
+        analyzers: List[Analyzer]
     ):
         self.id = analysis_id
         self.project_path = project_path
         self.files = files
         self.categories = categories
+        self.analyzers = analyzers
 
         # Status
         self.status = AnalysisStatus.PENDING
@@ -63,9 +67,14 @@ class AnalysisOrchestrator:
         self,
         project_path: str,
         selected_files: List[str],
-        categories: List[Category]
+        categories: List[Category],
+        analyzers: List[Analyzer] = None
     ) -> str:
         """Start a new analysis task"""
+
+        # Default to all analyzers if not specified
+        if analyzers is None:
+            analyzers = [Analyzer.ESLINT, Analyzer.BANDIT, Analyzer.CUSTOM_PATTERN, Analyzer.SEMGREP]
 
         # Generate unique ID
         analysis_id = str(uuid.uuid4())
@@ -75,7 +84,8 @@ class AnalysisOrchestrator:
             analysis_id=analysis_id,
             project_path=project_path,
             files=selected_files,
-            categories=categories
+            categories=categories,
+            analyzers=analyzers
         )
 
         self.active_tasks[analysis_id] = task
@@ -102,32 +112,39 @@ class AnalysisOrchestrator:
                 if f.endswith('.py')
             ]
 
-            # Calculate total analysis steps
-            # Each file will be analyzed by multiple analyzers
+            # Calculate total analysis steps based on selected analyzers
             total_steps = 0
             analyzer_info = []
 
-            if js_files:
-                total_steps += len(js_files)  # ESLint
+            if Analyzer.ESLINT in task.analyzers and js_files:
+                total_steps += len(js_files)
                 analyzer_info.append(f"ESLint: {len(js_files)} files")
-            if py_files and Category.SECURITY in task.categories:
-                total_steps += len(py_files)  # Bandit
+
+            if Analyzer.BANDIT in task.analyzers and py_files and Category.SECURITY in task.categories:
+                total_steps += len(py_files)
                 analyzer_info.append(f"Bandit: {len(py_files)} files")
-            total_steps += len(task.files)  # Custom pattern (all files)
-            analyzer_info.append(f"Security Pattern: {len(task.files)} files")
+
+            if Analyzer.CUSTOM_PATTERN in task.analyzers:
+                total_steps += len(task.files)
+                analyzer_info.append(f"Security Pattern: {len(task.files)} files")
+
+            if Analyzer.SEMGREP in task.analyzers:
+                total_steps += len(task.files)
+                analyzer_info.append(f"Semgrep: {len(task.files)} files")
 
             # Update total_files to reflect actual analysis steps
             task.total_files = total_steps
             task.completed_files = 0
 
             print(f"[DEBUG] Starting analysis: {total_steps} total steps")
+            print(f"[DEBUG] Selected analyzers: {[a.value for a in task.analyzers]}")
             print(f"[DEBUG] Breakdown: {' + '.join(analyzer_info)} = {total_steps} steps")
 
             # Run analyzers
             all_issues = []
 
-            # JavaScript/TypeScript analysis
-            if js_files:
+            # JavaScript/TypeScript analysis (ESLint)
+            if Analyzer.ESLINT in task.analyzers and js_files:
                 print(f"[DEBUG] Running ESLint on {len(js_files)} files")
                 js_analyzer = JavaScriptAnalyzer(task.project_path)
                 js_issues = await self._analyze_with_progress(
@@ -139,8 +156,8 @@ class AnalysisOrchestrator:
                 all_issues.extend(js_issues)
                 task.live_summary = self._calculate_summary(all_issues)
 
-            # Python analysis
-            if py_files and Category.SECURITY in task.categories:
+            # Python analysis (Bandit)
+            if Analyzer.BANDIT in task.analyzers and py_files and Category.SECURITY in task.categories:
                 print(f"[DEBUG] Running Bandit on {len(py_files)} files")
                 py_analyzer = PythonAnalyzer(task.project_path)
                 py_issues = await self._analyze_with_progress(
@@ -152,17 +169,31 @@ class AnalysisOrchestrator:
                 all_issues.extend(py_issues)
                 task.live_summary = self._calculate_summary(all_issues)
 
-            # Custom pattern analysis (all files)
-            print(f"[DEBUG] Running Custom Pattern on {len(task.files)} files")
-            custom_analyzer = CustomPatternAnalyzer(task.project_path)
-            custom_issues = await self._analyze_with_progress(
-                custom_analyzer,
-                task.files,
-                task,
-                'CustomPattern'
-            )
-            all_issues.extend(custom_issues)
-            task.live_summary = self._calculate_summary(all_issues)
+            # Custom pattern analysis
+            if Analyzer.CUSTOM_PATTERN in task.analyzers:
+                print(f"[DEBUG] Running Custom Pattern on {len(task.files)} files")
+                custom_analyzer = CustomPatternAnalyzer(task.project_path)
+                custom_issues = await self._analyze_with_progress(
+                    custom_analyzer,
+                    task.files,
+                    task,
+                    'CustomPattern'
+                )
+                all_issues.extend(custom_issues)
+                task.live_summary = self._calculate_summary(all_issues)
+
+            # Semgrep analysis
+            if Analyzer.SEMGREP in task.analyzers:
+                print(f"[DEBUG] Running Semgrep on {len(task.files)} files")
+                semgrep_analyzer = SemgrepAnalyzer(task.project_path)
+                semgrep_issues = await self._analyze_with_progress(
+                    semgrep_analyzer,
+                    task.files,
+                    task,
+                    'Semgrep'
+                )
+                all_issues.extend(semgrep_issues)
+                task.live_summary = self._calculate_summary(all_issues)
 
             # Check if cancelled
             if task.status == AnalysisStatus.CANCELLED:

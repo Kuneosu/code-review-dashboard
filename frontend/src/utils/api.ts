@@ -165,6 +165,7 @@ export async function startAnalysis(request: {
   project_path: string;
   selected_files: string[];
   categories: string[];
+  analyzers: string[];
 }): Promise<any> {
   return fetchAPI<any>('/analysis/start', {
     method: 'POST',

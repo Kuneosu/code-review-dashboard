@@ -23,7 +23,8 @@ async def start_analysis(request: AnalysisStartRequest):
         analysis_id = await orchestrator.start_analysis(
             project_path=request.project_path,
             selected_files=request.selected_files,
-            categories=request.categories
+            categories=request.categories,
+            analyzers=request.analyzers
         )
 
         return AnalysisStartResponse(

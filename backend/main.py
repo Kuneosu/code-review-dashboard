@@ -1,11 +1,19 @@
 """
 Smart Code Review - Backend Main Application
 """
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.phase1 import router as phase1_router
 from api.phase2 import router as phase2_router
 from api.phase3 import router as phase3_router
+from services.semgrep_setup import setup_semgrep
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 # Create FastAPI app
 app = FastAPI(
@@ -27,6 +35,21 @@ app.add_middleware(
 app.include_router(phase1_router)
 app.include_router(phase2_router)
 app.include_router(phase3_router)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """서버 시작 시 실행되는 초기화 작업"""
+    logging.info("=" * 60)
+    logging.info("Smart Code Review Backend Starting...")
+    logging.info("=" * 60)
+
+    # Semgrep 규칙 자동 다운로드
+    await setup_semgrep()
+
+    logging.info("=" * 60)
+    logging.info("✅ 서버 시작 완료!")
+    logging.info("=" * 60)
 
 
 @app.get("/")

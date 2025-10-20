@@ -2,6 +2,7 @@
  * Phase 2 Store: Analysis state management
  */
 import { create } from 'zustand';
+import { Analyzer } from '@/types';
 
 export enum AnalysisStatus {
   IDLE = 'IDLE',
@@ -38,7 +39,8 @@ interface Phase2State {
   // Actions
   startAnalysis: (
     selectedFiles: string[],
-    projectPath: string
+    projectPath: string,
+    analyzers: Analyzer[]
   ) => Promise<void>;
   fetchStatus: () => Promise<void>;
   pauseAnalysis: () => Promise<void>;
@@ -62,11 +64,12 @@ export const usePhase2Store = create<Phase2State>((set, get) => ({
   error: null,
 
   // Start analysis
-  startAnalysis: async (selectedFiles, projectPath) => {
+  startAnalysis: async (selectedFiles, projectPath, analyzers) => {
     try {
       console.log('[DEBUG] Starting analysis...', {
         selectedFiles: selectedFiles.length,
         projectPath,
+        analyzers,
       });
 
       const api = await import('@/utils/api');
@@ -75,6 +78,7 @@ export const usePhase2Store = create<Phase2State>((set, get) => ({
         project_path: projectPath,
         selected_files: selectedFiles,
         categories: ['security', 'performance', 'quality'],
+        analyzers,
       });
 
       console.log('[DEBUG] Analysis started:', data);

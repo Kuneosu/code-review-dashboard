@@ -56,6 +56,13 @@ export interface ErrorState {
   recoverable: boolean;
 }
 
+export enum Analyzer {
+  ESLINT = 'eslint',
+  BANDIT = 'bandit',
+  CUSTOM_PATTERN = 'custom_pattern',
+  SEMGREP = 'semgrep',
+}
+
 // API Request/Response types
 export interface ScanProjectRequest {
   project_path: string;
