@@ -2,7 +2,7 @@
  * Project Selector Component
  * Allows user to select a project directory via file picker or manual input
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePhase1Store } from '@/stores/phase1Store';
 
 export const ProjectSelector: React.FC = () => {
@@ -17,6 +17,34 @@ export const ProjectSelector: React.FC = () => {
   } = usePhase1Store();
 
   const [inputPath, setInputPath] = useState(projectPath);
+  const [currentWorkspace, setCurrentWorkspace] = useState<string | null>(null);
+
+  // Listen for messages from VS Code extension
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const message = event.data;
+
+      if (message.type === 'setProjectPath') {
+        const workspacePath = message.projectPath;
+        console.log('[ProjectSelector] Received workspace path:', workspacePath);
+
+        setCurrentWorkspace(workspacePath);
+        setInputPath(workspacePath);
+        setProjectPath(workspacePath);
+
+        // Auto-load file tree
+        loadFileTree();
+      } else if (message.type === 'folderSelected') {
+        const selectedPath = message.path;
+        setInputPath(selectedPath);
+        setProjectPath(selectedPath);
+        loadFileTree();
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [setProjectPath, loadFileTree]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,24 +83,11 @@ export const ProjectSelector: React.FC = () => {
       // @ts-ignore - vscodeApi is injected by VS Code
       if (typeof window.vscodeApi !== 'undefined') {
         // VS Code Extension: 네이티브 폴더 선택 다이얼로그 사용
+        // Message is handled by the global useEffect listener
         // @ts-ignore
         window.vscodeApi.postMessage({
           type: 'openFolderPicker'
         });
-
-        // 응답을 기다립니다 (dashboardPanel.ts에서 처리)
-        const handleFolderSelected = (event: MessageEvent) => {
-          const message = event.data;
-          if (message.type === 'folderSelected') {
-            const selectedPath = message.path;
-            setInputPath(selectedPath);
-            setProjectPath(selectedPath);
-            loadFileTree();
-            window.removeEventListener('message', handleFolderSelected);
-          }
-        };
-
-        window.addEventListener('message', handleFolderSelected);
         return;
       }
 
@@ -150,6 +165,32 @@ export const ProjectSelector: React.FC = () => {
     <div className="max-w-2xl mx-auto p-8">
       <div className="bg-white rounded-lg shadow-md p-6">
         <h1 className="text-2xl font-bold mb-6">Smart Code Review</h1>
+
+        {/* Current Workspace Display */}
+        {currentWorkspace && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-blue-800 mb-1">
+                  📂 Current Workspace
+                </p>
+                <p className="text-sm text-blue-700 font-mono break-all">
+                  {currentWorkspace}
+                </p>
+              </div>
+              <button
+                onClick={() => setCurrentWorkspace(null)}
+                className="ml-2 text-blue-600 hover:text-blue-800"
+                title="Clear current workspace"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-blue-600 mt-2">
+              ℹ️ This folder was automatically selected from your VS Code workspace
+            </p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
