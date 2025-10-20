@@ -3,7 +3,6 @@ File filtering service
 """
 from pathlib import Path
 from typing import List, Tuple
-import fnmatch
 
 from models.schemas import FileNode, FileType, FilterConfig, FilterRule, FilterStats
 
@@ -137,17 +136,42 @@ class FilterService:
         Returns:
             True if matches
         """
-        # Handle directory patterns (ending with /**)
-        if pattern.endswith('/**'):
-            dir_pattern = pattern[:-3]
-            # Match if path starts with directory or is the directory
-            if path == dir_pattern or path.startswith(dir_pattern + '/'):
-                return True
-            # Also use fnmatch for standard glob matching
-            return fnmatch.fnmatch(path, pattern)
+        # Use pathlib for proper ** handling
+        path_obj = Path(path)
 
-        # Standard glob matching
-        return fnmatch.fnmatch(path, pattern)
+        # Special handling for directory patterns like **/dirname/**
+        if pattern.startswith('**/') and pattern.endswith('/**'):
+            # Extract the directory name (e.g., "coverage" from "**/coverage/**")
+            dir_name = pattern[3:-3]
+
+            # Match if:
+            # 1. Path equals the directory name (e.g., "coverage")
+            # 2. Path starts with directory name followed by / (e.g., "coverage/...")
+            # 3. Path contains /directory name/ anywhere (e.g., "src/coverage/...")
+            # 4. Path contains /directory name at the end (e.g., "src/coverage")
+            if path == dir_name:
+                return True
+            if path.startswith(dir_name + '/'):
+                return True
+            if '/' + dir_name + '/' in path:
+                return True
+            if path.endswith('/' + dir_name):
+                return True
+
+            # Also use pathlib match as fallback
+            if path_obj.match(pattern):
+                return True
+
+        # For patterns starting with **/, we want to match anywhere in the path
+        elif pattern.startswith('**/'):
+            # Match the pattern against the path and all its parent paths
+            if path_obj.match(pattern):
+                return True
+            # Also try matching just the filename/last component
+            return path_obj.match(pattern[3:])
+
+        # For other patterns, use pathlib match
+        return path_obj.match(pattern)
 
     def _collect_selected_paths(self, node: FileNode) -> List[str]:
         """

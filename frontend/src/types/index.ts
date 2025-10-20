@@ -63,7 +63,6 @@ export interface ScanProjectRequest {
 
 export interface ScanProjectResponse {
   file_tree: FileNode;
-  detected_language: Language;
   total_files: number;
   gitignore_found: boolean;
 }

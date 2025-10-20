@@ -118,10 +118,9 @@ export const Phase1Page: React.FC = () => {
           {/* Right: File Tree Preview */}
           <div className="lg:col-span-2">
             <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-bold mb-4">File Tree Preview</h2>
               <FileTreeViewer
                 tree={filteredTree || fileTree}
-                className="max-h-[600px]"
+                className=""
               />
             </div>
           </div>

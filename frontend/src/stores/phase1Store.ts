@@ -6,7 +6,6 @@ import {
   FileNode,
   FilterConfig,
   ErrorState,
-  Language,
   FilterStats,
 } from '@/types';
 import * as api from '@/utils/api';
@@ -19,7 +18,6 @@ interface Phase1State {
   filteredTree: FileNode | null;
   selectedFiles: string[];
   filterStats: FilterStats | null;
-  detectedLanguage: Language;
   gitignoreFound: boolean;
 
   isScanning: boolean;
@@ -70,7 +68,6 @@ export const usePhase1Store = create<Phase1State>((set, get) => ({
   filteredTree: null,
   selectedFiles: [],
   filterStats: null,
-  detectedLanguage: Language.UNKNOWN,
   gitignoreFound: false,
 
   isScanning: false,
@@ -105,7 +102,6 @@ export const usePhase1Store = create<Phase1State>((set, get) => ({
 
       set({
         fileTree: response.file_tree,
-        detectedLanguage: response.detected_language,
         gitignoreFound: response.gitignore_found,
         isScanning: false,
       });
@@ -257,7 +253,6 @@ export const usePhase1Store = create<Phase1State>((set, get) => ({
       filteredTree: null,
       selectedFiles: [],
       filterStats: null,
-      detectedLanguage: Language.UNKNOWN,
       gitignoreFound: false,
       isScanning: false,
       isApplyingFilters: false,

@@ -41,9 +41,6 @@ async def scan_project(request: ScanProjectRequest):
         # Scan directory
         file_tree = file_scanner.scan_project_directory(request.project_path)
 
-        # Detect language
-        detected_language = file_scanner.detect_language(request.project_path)
-
         # Count total files
         total_files = file_scanner.count_files(file_tree)
 
@@ -53,7 +50,6 @@ async def scan_project(request: ScanProjectRequest):
 
         return ScanProjectResponse(
             file_tree=file_tree,
-            detected_language=detected_language,
             total_files=total_files,
             gitignore_found=gitignore_found
         )
@@ -113,10 +109,8 @@ async def apply_filters(request: ApplyFiltersRequest):
 
         # Auto-populate presets if needed
         if request.filter_config.use_presets and not request.filter_config.presets:
-            detected_language = file_scanner.detect_language(request.project_path)
-            preset = file_scanner.load_language_preset(detected_language)
-            if preset:
-                request.filter_config.presets = [preset]
+            # Always use COMMON_PRESET for all projects
+            request.filter_config.presets = [file_scanner.COMMON_PRESET]
 
         # Auto-populate gitignore rules if needed
         if request.filter_config.use_gitignore and not request.filter_config.gitignore_rules:

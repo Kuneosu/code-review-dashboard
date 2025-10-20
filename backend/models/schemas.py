@@ -90,7 +90,6 @@ class ScanProjectRequest(BaseModel):
 class ScanProjectResponse(BaseModel):
     """Response from project scan"""
     file_tree: FileNode
-    detected_language: Language
     total_files: int
     gitignore_found: bool
 
