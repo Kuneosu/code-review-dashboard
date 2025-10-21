@@ -20,7 +20,7 @@ export const Phase1Page: React.FC = () => {
     projectPath,
     reset,
   } = usePhase1Store();
-  const { startAnalysis } = usePhase2Store();
+  const { startAnalysis, reset: resetPhase2 } = usePhase2Store();
 
   // Analyzer selection state
   const [selectedAnalyzers, setSelectedAnalyzers] = useState<Analyzer[]>([
@@ -64,6 +64,8 @@ export const Phase1Page: React.FC = () => {
     }
 
     try {
+      // Reset Phase2 state before starting new analysis
+      resetPhase2();
       await startAnalysis(selectedFiles, projectPath, selectedAnalyzers);
       // Navigate to Phase 2 page
       navigate('/analysis');

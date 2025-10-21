@@ -1,5 +1,6 @@
 // 테스트용 보안 이슈 파일
 // Semgrep이 검출해야 하는 취약점들
+// @ts-nocheck
 
 export function vulnerableCode() {
   // 1. console.log - 프로덕션에서 제거해야 함

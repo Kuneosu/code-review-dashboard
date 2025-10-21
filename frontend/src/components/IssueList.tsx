@@ -126,7 +126,13 @@ export const IssueList: React.FC<IssueListProps> = ({
                       </p>
                     </div>
                   </div>
-                  <button className="ml-4 text-sm text-blue-600 hover:underline">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectIssue(issue);
+                    }}
+                    className="ml-4 text-sm text-blue-600 hover:underline"
+                  >
                     View Details →
                   </button>
                 </div>

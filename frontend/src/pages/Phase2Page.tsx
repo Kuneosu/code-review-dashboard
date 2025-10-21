@@ -26,6 +26,7 @@ export const Phase2Page: React.FC = () => {
     pauseAnalysis,
     resumeAnalysis,
     cancelAnalysis,
+    reset,
   } = usePhase2Store();
 
   // Polling every 2 seconds
@@ -209,7 +210,10 @@ export const Phase2Page: React.FC = () => {
             <div className="bg-red-50 border border-red-200 rounded-lg p-6">
               <p className="text-red-800 mb-4">{error || '알 수 없는 오류가 발생했습니다'}</p>
               <button
-                onClick={() => (window.location.href = '/')}
+                onClick={() => {
+                  reset();
+                  navigate('/');
+                }}
                 className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
               >
                 돌아가기
@@ -222,7 +226,10 @@ export const Phase2Page: React.FC = () => {
             <div className="text-center py-8">
               <p className="text-gray-700 mb-4">분석이 취소되었습니다</p>
               <button
-                onClick={() => (window.location.href = '/')}
+                onClick={() => {
+                  reset();
+                  navigate('/');
+                }}
                 className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
               >
                 돌아가기
