@@ -201,8 +201,14 @@ class AIAnalysisQueue:
         Returns:
             Analysis result
         """
-        # Generate cache key (async to avoid blocking)
-        cache_key = await self._generate_cache_key(issue, project_path)
+        # Read file content ONCE (avoids N+1 problem)
+        file_content = await self.prompt_builder.read_file_content_async(
+            issue['file'],
+            project_path
+        )
+
+        # Generate cache key using already-read file content
+        cache_key = self._generate_cache_key_from_content(file_content, issue)
 
         # Check cache
         if cache_key in self.cache:
@@ -218,12 +224,6 @@ class AIAnalysisQueue:
         start_time = time.time()
 
         try:
-            # Read file content asynchronously (non-blocking)
-            file_content = await self.prompt_builder.read_file_content_async(
-                issue['file'],
-                project_path
-            )
-
             if file_content.startswith('['):
                 # Error reading file
                 result.error = file_content
@@ -269,6 +269,32 @@ class AIAnalysisQueue:
             result.analysis_time = time.time() - start_time
 
         return result
+
+    def _generate_cache_key_from_content(self, file_content: str, issue: Dict[str, Any]) -> str:
+        """
+        Generate cache key from already-read file content (performance optimization)
+
+        Args:
+            file_content: Already-read file content (or error message)
+            issue: Issue dictionary
+
+        Returns:
+            Cache key hash
+
+        Note:
+            This method is used to avoid duplicate file reads (N+1 problem).
+            If file_content is an error message (starts with '['), cache key uses
+            issue metadata only to prevent cache poisoning.
+        """
+        # Security: Check if file read failed (error messages start with '[')
+        if file_content.startswith('['):
+            # File read error - use issue metadata only for cache key
+            key_data = f"ERROR|{issue['file']}|{issue['line']}|{issue['rule']}|{issue.get('message', '')}"
+        else:
+            # Normal case - include file content in cache key
+            key_data = f"{file_content}|{issue['file']}|{issue['line']}|{issue['rule']}"
+
+        return hashlib.md5(key_data.encode()).hexdigest()
 
     async def _generate_cache_key(self, issue: Dict[str, Any], project_path: str) -> str:
         """
