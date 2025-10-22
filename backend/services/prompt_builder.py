@@ -2,6 +2,7 @@
 Prompt builder for AI-powered code analysis
 """
 import os
+import aiofiles
 from typing import Dict, Any, List
 
 
@@ -138,6 +139,40 @@ Focus on practical, actionable advice. Be specific about the fix."""
             except UnicodeDecodeError:
                 with open(full_path, 'r', encoding='latin-1') as f:
                     return f.read()
+
+        except Exception as e:
+            return f"[Error reading file: {str(e)}]"
+
+    @staticmethod
+    async def read_file_content_async(file_path: str, project_path: str) -> str:
+        """
+        Read file content asynchronously (non-blocking)
+
+        Args:
+            file_path: Relative or absolute file path
+            project_path: Project root path
+
+        Returns:
+            File content or error message
+        """
+        try:
+            # Handle both relative and absolute paths
+            if os.path.isabs(file_path):
+                full_path = file_path
+            else:
+                full_path = os.path.join(project_path, file_path)
+
+            # Check if file exists
+            if not os.path.exists(full_path):
+                return f"[File not found: {file_path}]"
+
+            # Read asynchronously with encoding fallback
+            try:
+                async with aiofiles.open(full_path, 'r', encoding='utf-8') as f:
+                    return await f.read()
+            except UnicodeDecodeError:
+                async with aiofiles.open(full_path, 'r', encoding='latin-1') as f:
+                    return await f.read()
 
         except Exception as e:
             return f"[Error reading file: {str(e)}]"

@@ -201,8 +201,8 @@ class AIAnalysisQueue:
         Returns:
             Analysis result
         """
-        # Generate cache key
-        cache_key = self._generate_cache_key(issue, project_path)
+        # Generate cache key (async to avoid blocking)
+        cache_key = await self._generate_cache_key(issue, project_path)
 
         # Check cache
         if cache_key in self.cache:
@@ -218,8 +218,8 @@ class AIAnalysisQueue:
         start_time = time.time()
 
         try:
-            # Read file content
-            file_content = self.prompt_builder.read_file_content(
+            # Read file content asynchronously (non-blocking)
+            file_content = await self.prompt_builder.read_file_content_async(
                 issue['file'],
                 project_path
             )
@@ -270,9 +270,9 @@ class AIAnalysisQueue:
 
         return result
 
-    def _generate_cache_key(self, issue: Dict[str, Any], project_path: str) -> str:
+    async def _generate_cache_key(self, issue: Dict[str, Any], project_path: str) -> str:
         """
-        Generate cache key based on file content + issue location
+        Generate cache key based on file content + issue location (async)
 
         Args:
             issue: Issue dictionary
@@ -285,7 +285,8 @@ class AIAnalysisQueue:
             If file read fails, cache key is generated from issue metadata only
             to prevent cache poisoning with error messages
         """
-        file_content = self.prompt_builder.read_file_content(issue['file'], project_path)
+        # Use async file reading to avoid blocking event loop
+        file_content = await self.prompt_builder.read_file_content_async(issue['file'], project_path)
 
         # Security: Check if file read failed (error messages start with '[')
         if file_content.startswith('['):
