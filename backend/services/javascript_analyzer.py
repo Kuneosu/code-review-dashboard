@@ -61,9 +61,55 @@ class JavaScriptAnalyzer:
 
         return all_issues
 
+    def _calculate_timeout(self, file_paths: List[str]) -> int:
+        """
+        Calculate dynamic timeout based on file sizes
+
+        Args:
+            file_paths: List of file paths to analyze
+
+        Returns:
+            Timeout in seconds (30-300 range)
+
+        Logic:
+            - Base timeout: 30 seconds
+            - Additional: +5 seconds per 1MB
+            - Min: 30 seconds, Max: 300 seconds (5 minutes)
+        """
+        total_size_mb = 0.0
+
+        for file_path in file_paths:
+            try:
+                # Get absolute path
+                if os.path.isabs(file_path):
+                    full_path = file_path
+                else:
+                    full_path = os.path.join(self.project_path, file_path)
+
+                # Get file size in MB
+                if os.path.exists(full_path):
+                    size_bytes = os.path.getsize(full_path)
+                    total_size_mb += size_bytes / (1024 * 1024)
+            except (OSError, IOError):
+                # If file size check fails, use default timeout
+                continue
+
+        # Calculate timeout: base 30s + 5s per MB
+        base_timeout = 30
+        additional_timeout = int(total_size_mb * 5)
+        calculated_timeout = base_timeout + additional_timeout
+
+        # Clamp to min/max range
+        timeout = max(30, min(300, calculated_timeout))
+
+        return timeout
+
     async def _run_eslint(self, file_paths: List[str]) -> List[Issue]:
         """Run ESLint on a batch of files"""
         try:
+            # Calculate dynamic timeout based on file sizes
+            timeout = self._calculate_timeout(file_paths)
+
             # Build command
             cmd = [
                 'npx', 'eslint',
@@ -73,13 +119,13 @@ class JavaScriptAnalyzer:
                 *file_paths
             ]
 
-            # Run ESLint
+            # Run ESLint with dynamic timeout
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 cwd=self.project_path,
-                timeout=30  # 30 second timeout per batch
+                timeout=timeout
             )
 
             # Parse output (ESLint returns non-zero on errors found)
