@@ -280,10 +280,21 @@ class AIAnalysisQueue:
 
         Returns:
             Cache key hash
+
+        Note:
+            If file read fails, cache key is generated from issue metadata only
+            to prevent cache poisoning with error messages
         """
         file_content = self.prompt_builder.read_file_content(issue['file'], project_path)
 
-        key_data = f"{file_content}|{issue['file']}|{issue['line']}|{issue['rule']}"
+        # Security: Check if file read failed (error messages start with '[')
+        if file_content.startswith('['):
+            # File read error - use issue metadata only for cache key
+            key_data = f"ERROR|{issue['file']}|{issue['line']}|{issue['rule']}|{issue.get('message', '')}"
+        else:
+            # Normal case - include file content in cache key
+            key_data = f"{file_content}|{issue['file']}|{issue['line']}|{issue['rule']}"
+
         return hashlib.md5(key_data.encode()).hexdigest()
 
     def get_queue_status(self, queue_id: str) -> Optional[Dict[str, Any]]:

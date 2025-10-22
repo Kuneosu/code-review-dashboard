@@ -4,6 +4,7 @@ Semgrep analyzer for advanced security and code quality analysis
 import subprocess
 import json
 import os
+from pathlib import Path
 from typing import List, Dict, Any
 from models.schemas import Issue, Severity, Category
 
@@ -65,6 +66,41 @@ class SemgrepAnalyzer:
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
+    def _is_safe_file_path(self, file_path: str) -> bool:
+        """
+        Validate file path for security
+
+        Prevents command injection and path traversal attacks
+
+        Args:
+            file_path: File path to validate
+
+        Returns:
+            True if path is safe, False otherwise
+        """
+        # Reject paths with dangerous shell metacharacters
+        DANGEROUS_CHARS = [';', '&', '|', '`', '$', '(', ')', '<', '>', '\n', '\r']
+        if any(char in file_path for char in DANGEROUS_CHARS):
+            return False
+
+        # Reject absolute paths that don't start with project path
+        if os.path.isabs(file_path):
+            try:
+                project_abs = Path(self.project_path).resolve()
+                file_abs = Path(file_path).resolve()
+                # Check if file is under project directory
+                file_abs.relative_to(project_abs)
+            except ValueError:
+                # File is outside project directory
+                return False
+
+        # Reject paths that try to escape project directory
+        normalized = os.path.normpath(file_path)
+        if normalized.startswith('..') or '/../' in normalized:
+            return False
+
+        return True
+
     async def _run_semgrep(self, file_paths: List[str]) -> List[Issue]:
         """Run Semgrep on files"""
         try:
@@ -97,8 +133,20 @@ class SemgrepAnalyzer:
                 if os.path.exists(rule_path):
                     cmd.extend(['--config', rule_path])
 
-            # Add file paths
-            cmd.extend(file_paths)
+            # Security: Validate and sanitize file paths before passing to subprocess
+            validated_paths = []
+            for file_path in file_paths:
+                if self._is_safe_file_path(file_path):
+                    validated_paths.append(file_path)
+                else:
+                    print(f"⚠️  Skipping suspicious file path: {file_path}")
+
+            if not validated_paths:
+                print("⚠️  No valid file paths to analyze after security validation")
+                return []
+
+            # Add validated file paths
+            cmd.extend(validated_paths)
 
             # Debug: log the exact command
             print(f"[DEBUG] Semgrep command: {' '.join(cmd)}")

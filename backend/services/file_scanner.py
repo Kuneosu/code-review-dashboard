@@ -162,8 +162,13 @@ class FileScanner:
         Raises:
             PermissionError: If directory is not accessible
             FileNotFoundError: If path doesn't exist
+            ValueError: If path is outside allowed workspace or is a system directory
         """
         project_path = Path(path).resolve()
+
+        # Security: Validate path before scanning
+        if not self._is_safe_path(project_path):
+            raise ValueError(f"Access denied: Path is outside allowed workspace or in system directory: {path}")
 
         if not project_path.exists():
             raise FileNotFoundError(f"Path does not exist: {path}")
@@ -172,6 +177,62 @@ class FileScanner:
             raise PermissionError(f"No read permission for: {path}")
 
         return self._build_tree(project_path)
+
+    def _is_safe_path(self, path: Path) -> bool:
+        """
+        Validate that path is safe to scan (security check)
+
+        Args:
+            path: Resolved path to validate
+
+        Returns:
+            True if path is safe, False otherwise
+        """
+        path_str = str(path)
+
+        # Blocked system directories (Unix/Linux/macOS)
+        SYSTEM_DIRS = [
+            '/etc', '/sys', '/proc', '/dev', '/boot', '/root',
+            '/bin', '/sbin', '/usr/bin', '/usr/sbin',
+            '/System', '/Library/System', '/private/etc'
+        ]
+
+        # Check if path is in system directories
+        for sys_dir in SYSTEM_DIRS:
+            if path_str.startswith(sys_dir + '/') or path_str == sys_dir:
+                return False
+
+        # Prevent access to parent directories via symlinks
+        # Check if any parent is a symlink pointing outside user space
+        try:
+            current = path
+            while current != current.parent:
+                if current.is_symlink():
+                    target = current.resolve()
+                    # Recursively check symlink target
+                    if not self._is_safe_path(target):
+                        return False
+                current = current.parent
+        except (OSError, RuntimeError):
+            # If we can't verify, deny access
+            return False
+
+        # Allow paths in user's home directory or common workspace locations
+        home_dir = Path.home()
+
+        # Check if path is under user's home directory
+        try:
+            path.relative_to(home_dir)
+            return True
+        except ValueError:
+            pass
+
+        # Allow /tmp and /var/tmp for temporary files
+        if path_str.startswith('/tmp/') or path_str.startswith('/var/tmp/'):
+            return True
+
+        # Deny all other paths by default (principle of least privilege)
+        return False
 
     def _build_tree(self, path: Path, max_depth: int = 10, current_depth: int = 0) -> FileNode:
         """

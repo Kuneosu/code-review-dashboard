@@ -2,7 +2,7 @@
 Ollama LLM client for AI-powered code analysis
 """
 import httpx
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 from enum import Enum
 
 
@@ -26,7 +26,8 @@ class OllamaClient:
             base_url: Ollama API base URL (default: http://localhost:11434)
         """
         self.base_url = base_url
-        self.model = OllamaModel.CODELLAMA_7B
+        # Model can be OllamaModel enum or string (for custom/unknown models)
+        self.model: Union[OllamaModel, str] = OllamaModel.CODELLAMA_7B
         self.timeout = 120.0  # 2 minutes for generation
 
     async def health_check(self) -> Dict[str, Any]:
@@ -100,9 +101,10 @@ class OllamaClient:
                 return model.value
 
         # If no priority model found, use first available code model
+        # Store as string (not in OllamaModel enum) - type-safe with Union type
         for model in available_models:
             if "code" in model.lower() or "llama" in model.lower():
-                self.model = model
+                self.model = model  # Union[OllamaModel, str] allows string assignment
                 return model
 
         return None
@@ -128,8 +130,11 @@ class OllamaClient:
         """
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
+                # Get model string value (handles both enum and str types)
+                model_name = self.model.value if isinstance(self.model, OllamaModel) else self.model
+
                 payload = {
-                    "model": self.model,
+                    "model": model_name,
                     "prompt": prompt,
                     "stream": False,
                     "options": {
