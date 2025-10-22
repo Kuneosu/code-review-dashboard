@@ -93,6 +93,29 @@ class AIAnalysisQueue:
 
         return queue_id
 
+    def _calculate_queue_timeout(self, issue_count: int) -> int:
+        """
+        Calculate dynamic timeout for queue processing
+
+        Args:
+            issue_count: Number of issues to process
+
+        Returns:
+            Timeout in seconds
+
+        Logic:
+            - Base: 120 seconds (2 minutes) per issue
+            - Min: 300 seconds (5 minutes)
+            - Max: 3600 seconds (1 hour)
+        """
+        # Calculate timeout: 120s per issue
+        calculated_timeout = issue_count * 120
+
+        # Clamp to min/max range
+        timeout = max(300, min(3600, calculated_timeout))
+
+        return timeout
+
     async def process_queue(self, queue_id: str) -> None:
         """
         Process all issues in a queue with batch processing
@@ -118,28 +141,49 @@ class AIAnalysisQueue:
         issues = queue['issues']
         project_path = queue['project_path']
 
-        # Process issues concurrently with semaphore control
-        tasks = [
-            self._analyze_issue_with_semaphore(issue, project_path, queue_id)
-            for issue in issues
-        ]
+        # Calculate dynamic timeout based on issue count
+        timeout = self._calculate_queue_timeout(len(issues))
+        print(f"[AI] Queue {queue_id}: processing {len(issues)} issues with {timeout}s timeout")
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        try:
+            # Process issues concurrently with semaphore control and timeout
+            tasks = [
+                self._analyze_issue_with_semaphore(issue, project_path, queue_id)
+                for issue in issues
+            ]
 
-        # Check if cancelled during processing
-        if queue['cancelled']:
-            queue['status'] = 'cancelled'
+            # Add timeout to entire queue processing
+            results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=timeout
+            )
+
+            # Check if cancelled during processing
+            if queue['cancelled']:
+                queue['status'] = 'cancelled'
+                queue['end_time'] = time.time()
+                print(f"[AI] Queue {queue_id} was cancelled during processing")
+                return
+
+            # Update queue with results
+            queue['results'] = [r.to_dict() for r in results if isinstance(r, AIAnalysisResult)]
+            queue['completed'] = len([r for r in results if isinstance(r, AIAnalysisResult) and not r.error])
+            queue['failed'] = len([r for r in results if isinstance(r, AIAnalysisResult) and r.error])
+            queue['status'] = 'completed' if queue['failed'] == 0 else 'partially_completed'
+            queue['progress'] = 100
             queue['end_time'] = time.time()
-            print(f"[AI] Queue {queue_id} was cancelled during processing")
-            return
 
-        # Update queue with results
-        queue['results'] = [r.to_dict() for r in results if isinstance(r, AIAnalysisResult)]
-        queue['completed'] = len([r for r in results if isinstance(r, AIAnalysisResult) and not r.error])
-        queue['failed'] = len([r for r in results if isinstance(r, AIAnalysisResult) and r.error])
-        queue['status'] = 'completed' if queue['failed'] == 0 else 'partially_completed'
-        queue['progress'] = 100
-        queue['end_time'] = time.time()
+        except asyncio.TimeoutError:
+            # Queue processing timeout
+            queue['status'] = 'timeout'
+            queue['end_time'] = time.time()
+            queue['progress'] = int((queue['completed'] / queue['total_issues']) * 100) if queue['total_issues'] > 0 else 0
+            print(f"[AI] Queue {queue_id} timeout after {timeout}s - {queue['completed']}/{queue['total_issues']} completed")
+        except Exception as e:
+            # Unexpected error during queue processing
+            queue['status'] = 'failed'
+            queue['end_time'] = time.time()
+            print(f"[AI] Queue {queue_id} failed with error: {e}")
 
     async def _analyze_issue_with_semaphore(
         self,
