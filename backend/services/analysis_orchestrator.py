@@ -2,6 +2,7 @@
 Analysis orchestrator for managing code analysis tasks
 """
 import asyncio
+import os
 import uuid
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -63,6 +64,9 @@ class AnalysisOrchestrator:
     def __init__(self):
         self.active_tasks: Dict[str, AnalysisTask] = {}
 
+        # Get max files limit from environment variable (default: 10000)
+        self.max_files = int(os.getenv("MAX_ANALYSIS_FILES", "10000"))
+
     async def start_analysis(
         self,
         project_path: str,
@@ -71,6 +75,20 @@ class AnalysisOrchestrator:
         analyzers: List[Analyzer] = None
     ) -> str:
         """Start a new analysis task"""
+
+        # Validate file count (prevent memory exhaustion)
+        if len(selected_files) > self.max_files:
+            raise ValueError(
+                f"파일이 너무 많습니다. 최대 {self.max_files}개까지 분석 가능합니다. "
+                f"(현재: {len(selected_files)}개)\n"
+                f"환경 변수 MAX_ANALYSIS_FILES로 제한값을 변경할 수 있습니다."
+            )
+
+        # Log warning for large file counts
+        if len(selected_files) > 5000:
+            print(f"⚠️  Warning: {len(selected_files)} files selected - 높은 메모리 사용 및 긴 분석 시간이 예상됩니다.")
+        elif len(selected_files) > 1000:
+            print(f"ℹ️  Info: {len(selected_files)} files selected - 분석 시간이 다소 소요될 수 있습니다.")
 
         # Default to all analyzers if not specified
         if analyzers is None:
