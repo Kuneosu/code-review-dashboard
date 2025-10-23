@@ -139,12 +139,24 @@ class ImportConfigRequest(BaseModel):
 
 
 class ErrorResponse(BaseModel):
-    """Error response"""
-    error_type: Literal['permission_denied', 'parse_error', 'network_error', 'unknown']
+    """Standardized error response"""
+    error_type: Literal[
+        'permission_denied',
+        'parse_error',
+        'network_error',
+        'validation_error',
+        'not_found',
+        'timeout_error',
+        'file_limit_exceeded',
+        'resource_exhausted',
+        'internal_error',
+        'unknown'
+    ]
     message: str
     path: Optional[str] = None
     recoverable: bool = False
     details: Optional[Dict[str, Any]] = None
+    timestamp: Optional[str] = None
 
 
 # Phase 2: Analysis Models
