@@ -21,6 +21,8 @@ interface Phase1State {
   gitignoreFound: boolean;
 
   isScanning: boolean;
+  scanningMessage: string;
+  scannedFilesCount: number;
   isApplyingFilters: boolean;
   error: ErrorState | null;
 
@@ -71,6 +73,8 @@ export const usePhase1Store = create<Phase1State>((set, get) => ({
   gitignoreFound: false,
 
   isScanning: false,
+  scanningMessage: '',
+  scannedFilesCount: 0,
   isApplyingFilters: false,
   error: null,
 
@@ -95,14 +99,32 @@ export const usePhase1Store = create<Phase1State>((set, get) => ({
       return;
     }
 
-    set({ isScanning: true, error: null });
+    set({
+      isScanning: true,
+      scanningMessage: '프로젝트 스캔 중...',
+      scannedFilesCount: 0,
+      error: null,
+    });
 
     try {
+      // Update message for gitignore parsing
+      set({ scanningMessage: '.gitignore 규칙 확인 중...' });
+
       const response = await api.scanProject({ project_path: projectPath });
+
+      // Calculate total scanned files
+      const countFiles = (node: FileNode): number => {
+        if (node.type === 'file') return 1;
+        return (node.children || []).reduce((sum, child) => sum + countFiles(child), 0);
+      };
+
+      const totalFiles = countFiles(response.file_tree);
 
       set({
         fileTree: response.file_tree,
         gitignoreFound: response.gitignore_found,
+        scannedFilesCount: totalFiles,
+        scanningMessage: `${totalFiles.toLocaleString()}개 파일 스캔 완료`,
         isScanning: false,
       });
 
@@ -112,9 +134,16 @@ export const usePhase1Store = create<Phase1State>((set, get) => ({
       // Add to recent projects
       get().addToRecentProjects(projectPath);
 
+      // Clear scanning message after 2 seconds
+      setTimeout(() => {
+        set({ scanningMessage: '' });
+      }, 2000);
+
     } catch (error: any) {
       set({
         isScanning: false,
+        scanningMessage: '',
+        scannedFilesCount: 0,
         error: {
           type: error.error_type || 'unknown',
           message: error.message || 'Failed to scan project',
@@ -255,6 +284,8 @@ export const usePhase1Store = create<Phase1State>((set, get) => ({
       filterStats: null,
       gitignoreFound: false,
       isScanning: false,
+      scanningMessage: '',
+      scannedFilesCount: 0,
       isApplyingFilters: false,
       error: null,
     });

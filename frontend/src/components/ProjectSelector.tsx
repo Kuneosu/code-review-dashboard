@@ -11,6 +11,8 @@ export const ProjectSelector: React.FC = () => {
     setProjectPath,
     loadFileTree,
     isScanning,
+    scanningMessage,
+    scannedFilesCount,
     error,
     clearError,
     recentProjects,
@@ -276,11 +278,22 @@ export const ProjectSelector: React.FC = () => {
           </div>
         )}
 
-        {isScanning && (
+        {(isScanning || scanningMessage) && (
           <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
-            <div className="flex items-center">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
-              <p className="text-blue-800">Scanning project directory...</p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                {isScanning && (
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
+                )}
+                <p className="text-blue-800">
+                  {scanningMessage || 'Scanning project directory...'}
+                </p>
+              </div>
+              {scannedFilesCount > 0 && (
+                <p className="text-sm text-blue-600 font-medium">
+                  {scannedFilesCount.toLocaleString()} files
+                </p>
+              )}
             </div>
           </div>
         )}
