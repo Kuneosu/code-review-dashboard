@@ -168,13 +168,29 @@ class FileScanner:
 
         # Security: Validate path before scanning
         if not self._is_safe_path(project_path):
-            raise ValueError(f"Access denied: Path is outside allowed workspace or in system directory: {path}")
+            raise ValueError(
+                f"보안상의 이유로 이 경로는 스캔할 수 없습니다: {path}\n\n"
+                f"시스템 디렉토리나 제한된 영역에 대한 접근이 차단되었습니다.\n"
+                f"사용자 프로젝트 폴더(예: /Users/username/projects, /home/user/projects)를 선택해주세요."
+            )
 
         if not project_path.exists():
-            raise FileNotFoundError(f"Path does not exist: {path}")
+            raise FileNotFoundError(
+                f"지정한 경로를 찾을 수 없습니다: {path}\n\n"
+                f"경로를 다시 확인해주세요:\n"
+                f"• 경로가 올바르게 입력되었는지 확인\n"
+                f"• 폴더가 삭제되거나 이동되지 않았는지 확인\n"
+                f"• 외부 드라이브인 경우 연결 상태 확인"
+            )
 
         if not os.access(project_path, os.R_OK):
-            raise PermissionError(f"No read permission for: {path}")
+            raise PermissionError(
+                f"이 경로에 대한 읽기 권한이 없습니다: {path}\n\n"
+                f"해결 방법:\n"
+                f"• macOS/Linux: 터미널에서 'chmod +r {path}' 실행\n"
+                f"• Windows: 폴더 속성에서 읽기 권한 확인\n"
+                f"• 또는 권한이 있는 다른 폴더를 선택해주세요"
+            )
 
         return self._build_tree(project_path)
 

@@ -333,7 +333,14 @@ class AnalysisOrchestrator:
     def get_status(self, analysis_id: str) -> Dict:
         """Get analysis status"""
         if analysis_id not in self.active_tasks:
-            raise ValueError(f"Analysis {analysis_id} not found")
+            raise ValueError(
+                f"분석 작업을 찾을 수 없습니다 (ID: {analysis_id[:8]}...)\n\n"
+                f"가능한 원인:\n"
+                f"• 분석이 아직 시작되지 않았습니다\n"
+                f"• 분석이 완료되어 삭제되었습니다\n"
+                f"• 서버가 재시작되어 작업이 초기화되었습니다\n\n"
+                f"새로운 분석을 시작해주세요."
+            )
 
         task = self.active_tasks[analysis_id]
 
@@ -364,7 +371,14 @@ class AnalysisOrchestrator:
     def get_result(self, analysis_id: str) -> Dict:
         """Get complete analysis result"""
         if analysis_id not in self.active_tasks:
-            raise ValueError(f"Analysis {analysis_id} not found")
+            raise ValueError(
+                f"분석 결과를 찾을 수 없습니다 (ID: {analysis_id[:8]}...)\n\n"
+                f"가능한 원인:\n"
+                f"• 분석이 아직 완료되지 않았습니다\n"
+                f"• 분석 결과가 이미 삭제되었습니다\n"
+                f"• 서버가 재시작되어 결과가 손실되었습니다\n\n"
+                f"분석을 다시 실행해주세요."
+            )
 
         task = self.active_tasks[analysis_id]
 

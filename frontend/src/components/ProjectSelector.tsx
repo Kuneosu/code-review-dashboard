@@ -237,15 +237,21 @@ export const ProjectSelector: React.FC = () => {
         {error && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
             <div className="flex justify-between items-start">
-              <div>
-                <p className="text-red-800 font-medium">{error.message}</p>
-                {error.path && (
-                  <p className="text-red-600 text-sm mt-1">Path: {error.path}</p>
+              <div className="flex-1">
+                <p className="text-red-800 font-medium whitespace-pre-line">{error.message}</p>
+                {error.path && !error.message.includes(error.path) && (
+                  <p className="text-red-600 text-sm mt-2">경로: {error.path}</p>
+                )}
+                {error.recoverable && (
+                  <p className="text-orange-600 text-sm mt-2 italic">
+                    💡 이 문제는 해결 가능합니다. 위의 안내를 따라주세요.
+                  </p>
                 )}
               </div>
               <button
                 onClick={clearError}
-                className="text-red-600 hover:text-red-800"
+                className="ml-4 text-red-600 hover:text-red-800 flex-shrink-0"
+                aria-label="에러 메시지 닫기"
               >
                 ✕
               </button>

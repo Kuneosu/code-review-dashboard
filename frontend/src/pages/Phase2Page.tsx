@@ -208,16 +208,27 @@ export const Phase2Page: React.FC = () => {
           {/* Error Message */}
           {status === AnalysisStatus.FAILED && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-              <p className="text-red-800 mb-4">{error || '알 수 없는 오류가 발생했습니다'}</p>
-              <button
-                onClick={() => {
-                  reset();
-                  navigate('/');
-                }}
-                className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-              >
-                돌아가기
-              </button>
+              <h3 className="text-red-900 font-semibold text-lg mb-3">⚠️ 분석 실패</h3>
+              <p className="text-red-800 mb-4 whitespace-pre-line">
+                {error || '알 수 없는 오류가 발생했습니다.\n\n프로젝트를 다시 선택하고 분석을 재시도해주세요.'}
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    reset();
+                    navigate('/');
+                  }}
+                  className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                >
+                  처음으로 돌아가기
+                </button>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+                >
+                  페이지 새로고침
+                </button>
+              </div>
             </div>
           )}
 
